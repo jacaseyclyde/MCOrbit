@@ -1,8 +1,3 @@
-
-# coding: utf-8
-
-# In[ ]:
-
 #!/usr/bin/env python2
 
 
@@ -14,21 +9,29 @@ that need to be worked out
 Modified by J. Andrew Casey-Clyde
 '''
 
-print "import np"
+# =============================================================================
+# =============================================================================
+# # Topmatter
+# =============================================================================
+# =============================================================================
+
+print('import os')
+import os
+print("import np")
 import numpy as np
-print "import plt"
+print("import plt")
 import matplotlib.pyplot as plt
-print "import corner"
+print("import corner")
 import corner
-print "import MCMC"
+print("import MCMC")
 import emcee
-print "import time"
+print("import time")
 import time
 import datetime
-print "import warn"
+print("import warn")
 import warnings
 
-print "imports done"
+print("imports done")
 
 #Ignores stuff
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
@@ -36,8 +39,11 @@ warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 np.set_printoptions(precision=5,threshold=np.inf)
 
 global datafile
+global outpath
+global stamp
 
 datafile='../dat/CLF-Sim.csv'
+outpath='../out/'
 
 # =============================================================================
 # =============================================================================
@@ -75,7 +81,7 @@ def EllipseFunc(p):
     T = Transmat(p)
     
     # k is the relative velocity weight
-    Mdyn=4.02e+6# ± 0.16 ± 0.04 × 10^6 M_sun
+    Mdyn=4.02e+6 # ± 0.16 ± 0.04 × 10^6 M_sun
     k=1e-1
     
     # should probably get better numbers than general googling but this works for now
@@ -191,7 +197,7 @@ def PlotFunc(p):
     plt.xlabel('Offset (pc)')
     plt.ylabel('Offset (pc)')
     plt.gca().invert_xaxis()
-    plt.savefig('{:%Y%m%d%H%M%S}_skyplane.pdf'.format(datetime.datetime.now()),bbox_inches='tight')
+    plt.savefig(outpath + stamp + 'skyplane.pdf',bbox_inches='tight')
     plt.show()
     plt.figure(2)
     plt.clf()
@@ -201,7 +207,7 @@ def PlotFunc(p):
     plt.title('Orbit Plane')#. p = {}'.format(p))
     plt.xlabel('Offset (pc)')
     plt.ylabel('Offset (pc)')
-    plt.savefig('{:%Y%m%d%H%M%S}_orbitplane.pdf'.format(datetime.datetime.now()),bbox_inches='tight')
+    plt.savefig(outpath + stamp + 'orbitplane.pdf',bbox_inches='tight')
     plt.show()
     p[0:3]=np.radians(p[0:3])
     
@@ -282,7 +288,13 @@ def lnProb(theta,D):
 # # Main Program
 # =============================================================================
 # =============================================================================
+
+# initialize stamp
+stamp = '{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
     
+# create output folder
+os.makedirs(outpath + stamp)
+
 # load data
 my_data = np.genfromtxt(datafile, delimiter=',')
 
@@ -293,6 +305,8 @@ Xerr=my_data[:,3]
 Yerr=my_data[:,4]
 Verr=my_data[:,5]
 Verr[Verr==0]=4e-2
+
+data = np.array([X,Y]).T
 
 # =============================================================================
 # MC MC
@@ -316,7 +330,9 @@ print "priors"
 fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
                     range=prange)
 fig.set_size_inches(10,10)
-plt.savefig('{:%Y%m%d%H%M%S}_priors.pdf'.format(datetime.datetime.now()),bbox_inches='tight')
+
+
+plt.savefig(outpath + stamp + 'priors.pdf',bbox_inches='tight')
 plt.show()
 
 # Define the posterior PDF
@@ -331,7 +347,7 @@ print "posts done, loading sampler"
 
 # Let us setup the emcee Ensemble Sampler
 # It is very simple: just one, self-explanatory line
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data])
 
 
 time0 = time.time()
@@ -385,11 +401,5 @@ PlotFunc(pbest)
 fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
                     range=prange)
 fig.set_size_inches(10,10)
-plt.savefig('{0:%Y%m%d%H%M%S}_results_{1}.pdf'.format(datetime.datetime.now(),nwalkers),bbox_inches='tight')
+plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
 plt.show()
-
-
-# In[ ]:
-
-
-
