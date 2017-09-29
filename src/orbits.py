@@ -81,7 +81,7 @@ def EllipseFunc(p):
     T = Transmat(p)
     
     # k is the relative velocity weight
-    Mdyn=4.02e+6 # ± 0.16 ± 0.04 × 10^6 M_sun
+    Mdyn=4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
     k=1e-1
     
     # should probably get better numbers than general googling but this works for now
@@ -155,7 +155,7 @@ def PlotFunc(p):
     (aop, loan, inc, a, e)=p
     b=a*np.sqrt(1-e**2)
     x0=a*e
-    Mdyn=4.02e+6# ± 0.16 ± 0.04 ? 10^6 M_sun
+    Mdyn=4.02e+6# +/- 0.16 +/- 0.04 ? 10^6 M_sun
 
     x,y,T=SkytoOrb(X,Y,p)
     
