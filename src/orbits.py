@@ -81,21 +81,21 @@ def EllipseFunc(p):
     T = Transmat(p)
     
     # k is the relative velocity weight
-    Mdyn=4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
-    k=1e-1
+#    Mdyn=4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
+#    k=1e-1
     
     # should probably get better numbers than general googling but this works for now
-    GM = Mdyn * 6.67e-11 * 1.99e+30 # last number is Msun
+#    GM = Mdyn * 6.67e-11 * 1.99e+30 # last number is Msun
     
     # Sanity Check
     if e >=1.:
         return np.inf
     
-    b=a*np.sqrt(1-e**2.)
+    b=a*np.sqrt(1-e**2.) 
     x0=a*e
     
     # reduced angular momentum
-    l = (a - a * e) * np.sqrt(GM * (1 + e) / (a * (1 - e)))
+#    l = (a - a * e) * np.sqrt(GM * (1 + e) / (a * (1 - e)))
     
     '''
     Generate Ellipse
@@ -105,7 +105,7 @@ def EllipseFunc(p):
     tspace=1000
     
     global ttest
-    ttest=np.linspace(0,2*np.pi,tspace)
+    ttest=np.linspace(0 , 2 * np.pi , tspace)
     
     # Parametric coordinates
     xtest=-x0+a*np.cos(ttest)
@@ -113,19 +113,20 @@ def EllipseFunc(p):
     ztest=np.zeros_like(xtest)
     rtest = np.sqrt(xtest**2 + ytest**2)
     
-    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
-                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
-    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
-                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+#    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
+#                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+#    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
+#                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
     Rtest=np.matmul(np.linalg.inv(T),rtest)
 
-    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
-            + (-np.sin(inc) * np.cos(aop) * ydottest)
+#    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
+#            + (-np.sin(inc) * np.cos(aop) * ydottest)
             
-    return Rtest
+    return Rtest.T # returning the transpose so that each point on the ellipse
+                   # can be treated discretely
 
 def Transmat(p):
     """
@@ -167,6 +168,8 @@ def PlotFunc(p):
     
     rr=np.vstack([xx,yy,zz])
     RR=np.matmul(np.linalg.inv(T),rr)
+    # everything above this line can be removed and replaced with a call to 
+    # EllipseFunc to get RR
     
     r = (xx**2.+yy**2.)**.5
     rmin=a-a*e
@@ -231,8 +234,8 @@ def PointPointProb(d,e,cov):
     ex = e[0]
     ey = e[1]
     
-    varx = cov[0][0]
-    vary = cov[1][1]
+    varx = np.sqrt(cov[0][0])
+    vary = np.sqrt(cov[1][1])
     varxy = cov[0][1]
     
     corr_coeff = varxy / (varx * vary)
@@ -240,8 +243,11 @@ def PointPointProb(d,e,cov):
     z2 = ((( x - ex )**2 ) / varx**2 ) + ((( y - ey )**2 ) / vary**2 ) \
             - 2 * corr_coeff * ((( x - ex ) * ( y - ey )) / ( varx * vary ))
             
-    return ( 1 / ( 2 * np.pi * varx * vary * np.sqrt(1 - corr_coeff**2))) \
-            * np.exp( -z2 / ( 2 * ( 1 - corr_coeff**2 )))
+    exp = np.exp( -z2 / ( 2 * ( 1 - corr_coeff**2 )))
+    
+    pp = ( 1 / ( 2 * np.pi * varx * vary * np.sqrt(1 - corr_coeff**2)))
+    
+    return pp * exp
             
 def PointModelProb(d,E,cov):
     '''
@@ -260,7 +266,12 @@ def lnLike(theta,D):
     E = EllipseFunc(theta)
     cov = np.cov( D[:,0], D[:,1])
     
-    return np.sum(np.log(PointModelProb(D,E,cov)))
+    lnlike = 0.
+    
+    for d in D:
+        lnlike += np.log(PointModelProb(d,E,cov))
+    
+    return lnlike
 
 def lnPrior(theta):
     '''
