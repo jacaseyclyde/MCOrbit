@@ -37,7 +37,7 @@ np.set_printoptions(precision=5,threshold=np.inf)
 
 global datafile
 
-datafile='/home/jacaseyclyde/Documents/Research/Data/ALMA/CND/CLF-Sim.csv'
+datafile='../dat/CLF-Sim.csv'
 
 """
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -88,17 +88,7 @@ def EllipseFunc(p):
     Takes in coordinates ~p in radians~ and spits out f1 -- the constraint that
     the orbit must be elliptical and SgrA* lies at the focus
     """
-    
-    my_data = np.genfromtxt(datafile, delimiter=',')
-    
-    # Read in Sky Plane Data
-    X=my_data[:,0]
-    Y=my_data[:,1]
-    V=my_data[:,2]
-    Xerr=my_data[:,3]
-    Yerr=my_data[:,4]
-    Verr=my_data[:,5]
-    Verr[Verr==0]=4e-2
+
     (aop, loan, inc, a, e)=p
     
     T = Transmat(p)
@@ -119,12 +109,6 @@ def EllipseFunc(p):
     
     # reduced angular momentum
     l = (a - a * e) * np.sqrt(GM * (1 + e) / (a * (1 - e)))
-    
-    
-    # Statistical Weight
-    WX=np.eye(np.size(X))
-    WY=np.eye(np.size(X))
-    WV=np.eye(np.size(X))
     
     '''
     Generate Ellipse
@@ -150,36 +134,11 @@ def EllipseFunc(p):
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
     Rtest=np.matmul(np.linalg.inv(T),rtest)
-    Xtest=Rtest[0,:]
-    Ytest=Rtest[1,:]
+
     Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
             + (-np.sin(inc) * np.cos(aop) * ydottest)
-    
-    dist = np.zeros_like(X)
-    X2min= np.zeros_like(X)
-    Y2min= np.zeros_like(X)
-    
-    
-    
-    for i in range(0,np.size(dist)):
-        delX=(Xtest-X[i])
-        delY=(Ytest-Y[i])
-        
-        X2test=(WX[i][i]*np.multiply(delX,delX))
-        Y2test=(WY[i][i]*np.multiply(delY,delY))
-        
-        dist2test = X2test+Y2test
-        dist[i] = np.amin(dist2test)
-        jmin=np.argmin(dist2test)
-        
-        X2min[i]=X2test[jmin]
-        Y2min[i]=Y2test[jmin]
-    
-    dist=np.sqrt(dist)
-    Xmin=np.sqrt(X2min)
-    Ymin=np.sqrt(Y2min)
-    #print 'x: {}, y: {}, tot:{}'.format(X2,Y2,dist)
-    return dist
+            
+    return Rtest
 
 def Transmat(p):
     """
@@ -269,6 +228,21 @@ def PlotFunc(p):
 
 
 # In[ ]:
+    
+# =============================================================================
+# Main Run block
+# =============================================================================
+    
+# load data
+my_data = np.genfromtxt(datafile, delimiter=',')
+
+X=my_data[:,0]
+Y=my_data[:,1]
+V=my_data[:,2]
+Xerr=my_data[:,3]
+Yerr=my_data[:,4]
+Verr=my_data[:,5]
+Verr[Verr==0]=4e-2
 
 """
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
