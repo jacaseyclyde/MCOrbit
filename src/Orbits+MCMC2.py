@@ -255,6 +255,25 @@ def lnLike(theta,D):
     cov = np.cov( D[:,0], D[:,1])
     
     return np.sum(np.log(PointModelProb(D,E,cov)))
+
+def lnPrior(theta):
+    '''
+    The log-likelihood of the prior. Currently assuming uniform
+    '''
+    #aop,loan, inc, a, e = theta
+    if ((theta >= pos_min).all() and (theta < pos_max).all()):
+        return 0.0
+    return -np.inf
+
+def lnProb(theta,D):
+    '''
+    Returns the total log probability that dataset D could have been generated
+    by the elliptical model with parameters theta
+    '''
+    lp = lnPrior(theta)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp + lnLike(theta,D)
     
 # %%
 
@@ -305,23 +324,7 @@ plt.show()
 # We take the logarithm since emcee needs it.
 print "compiling post"
 # As prior, we assume an 'uniform' prior (i.e. constant prob. density)
-def lnprior(theta):
-    #aop,loan, inc, a, e = theta
-    if ((theta >= pos_min).all() and (theta < pos_max).all()):
-        return 0.0
-    return -np.inf
 
-# As likelihood, we assume the chi-square. Note: we do not even need to normalize it.
-def lnlike(theta):
-    dist = Func(theta)
-    var = np.var(dist)
-    return -0.5*(np.sum(dist**2) / var) - (len(dist) * np.log(np.sqrt(2*np.pi*var)))
-
-def lnprob(theta):
-    lp = lnprior(theta)
-    if not np.isfinite(lp):
-        return -np.inf
-    return lp + lnlike(theta)
 
 print "posts done, loading sampler"
 
