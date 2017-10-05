@@ -252,7 +252,7 @@ def lnLike(theta,D):
     D should be formatted as [[x,y]]
     '''
     E = EllipseFunc(theta)
-    cov = np.cov( D[:,0], D[:,1])
+    cov = np.cov( D.T )
     
     lnlike = 0.
     
@@ -305,7 +305,7 @@ Yerr=my_data[:,4]
 Verr=my_data[:,5]
 Verr[Verr==0]=4e-2
 
-data = np.array([X,Y]).T
+data = np.array([X,Y,V]).T
 
 # =============================================================================
 # MC MC
