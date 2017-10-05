@@ -350,7 +350,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov])
 
 
 time0 = time.time()
-print "burning in"
+print("burning in")
 # burnin phase
 pos,prob,state = sampler.run_mcmc(pos, 300)
 sampler.reset()
@@ -358,7 +358,12 @@ time1=time.time()
 print time1-time0
 
 time0 = time.time()
-print "MCMC"
+print('Burned in')
+fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
+                    range=prange)
+fig.set_size_inches(10,10)
+
+print("MCMC")
 # perform MCMC
 pos, prob, state  = sampler.run_mcmc(pos, 1000)
 time1=time.time()
