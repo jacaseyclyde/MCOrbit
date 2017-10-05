@@ -233,7 +233,7 @@ def PointPointProb(d,e,cov):
     
     coeff = ( 1 / ((2 * np.pi)**(M / 2.)) * np.sqrt(np.linalg.det(cov)))
     
-    exp = np.exp(-0.5 * (np.matmul(d,np.matmul(H,d))))
+    exp = np.exp(-0.5 * np.matmul(d, np.matmul(H,d)))
     
     return coeff * exp
             
