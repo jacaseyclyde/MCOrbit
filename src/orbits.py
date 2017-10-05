@@ -326,7 +326,7 @@ data = np.array([X,Y]).T
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
 nwalkers = 1000
-priors = np.array([[0.,0.,0,.1,.5],[np.pi / 2.,np.pi,np.pi,2,.999]])
+priors = np.array([[0.,0.,0,.1,.5],[np.pi / 2.,np.pi / 2,np.pi / 2 , 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
 # Initialize the chain
