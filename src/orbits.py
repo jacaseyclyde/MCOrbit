@@ -81,11 +81,11 @@ def EllipseFunc(p):
     T = Transmat(p)
     
     # k is the relative velocity weight
-#    Mdyn=4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
+    Mdyn=4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
 #    k=1e-1
     
     # should probably get better numbers than general googling but this works for now
-#    GM = Mdyn * 6.67e-11 * 1.99e+30 # last number is Msun
+    GM = Mdyn * 6.67e-11 * 1.99e+30 # last number is Msun
     
     # Sanity Check
     if e >=1.:
@@ -95,7 +95,7 @@ def EllipseFunc(p):
     x0=a*e
     
     # reduced angular momentum
-#    l = (a - a * e) * np.sqrt(GM * (1 + e) / (a * (1 - e)))
+    l = (a - a * e) * np.sqrt(GM * (1 + e) / (a * (1 - e)))
     
     '''
     Generate Ellipse
@@ -113,17 +113,19 @@ def EllipseFunc(p):
     ztest=np.zeros_like(xtest)
     rtest = np.sqrt(xtest**2 + ytest**2)
     
-#    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
-#                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
-#    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
-#                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
+                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
+                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
     Rtest=np.matmul(np.linalg.inv(T),rtest)
 
-#    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
-#            + (-np.sin(inc) * np.cos(aop) * ydottest)
+    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
+            + (-np.sin(inc) * np.cos(aop) * ydottest)
+            
+    Rtest[2] = Vtest
             
     return Rtest.T # returning the transpose so that each point on the ellipse
                    # can be treated discretely
@@ -314,7 +316,7 @@ cov = np.cov( data.T )
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
 nwalkers = 1000
-priors = np.array([[0.,0.,0,.1,.5],[np.pi / 2.,np.pi / 2,np.pi / 2 , 2, .999]])
+priors = np.array([[0.,0.,0,.1,.5],[np.pi,np.pi,np.pi, 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
 # Initialize the chain
@@ -353,7 +355,6 @@ time0 = time.time()
 print("burning in")
 # burnin phase
 pos,prob,state = sampler.run_mcmc(pos, 300)
-sampler.reset()
 time1=time.time()
 print time1-time0
 
@@ -362,6 +363,7 @@ print('Burned in')
 fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
                     range=prange)
 fig.set_size_inches(10,10)
+plt.show()
 
 print("MCMC")
 # perform MCMC
