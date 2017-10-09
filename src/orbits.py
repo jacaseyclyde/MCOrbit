@@ -81,11 +81,18 @@ def EllipseFunc(p):
     T = Transmat(p)
     
     # k is the relative velocity weight
-    Mdyn=4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
+    # Msun and G are currently just based on wikipedia and probably need a better source
+    Mdyn = 4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
+    Msun = 1.99e+30 # kg
+    G = 6.67e-11 # m^3 kg^-1 s^-2
 #    k=1e-1
     
+    pcToKm = 3.0857e+13 # conversion factor for going from pc to km
+    
+    a = a * pcToKm
+    
     # should probably get better numbers than general googling but this works for now
-    GM = Mdyn * 6.67e-11 * 1.99e+30 # last number is Msun
+    GM = G * Mdyn * Msun / 1e+9 # last part converting from m^3 to km^3
     
     # Sanity Check
     if e >=1.:
@@ -117,13 +124,13 @@ def EllipseFunc(p):
                 * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
     ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
                 * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+                
+    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
+            + (-np.sin(inc) * np.cos(aop) * ydottest)
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
     Rtest=np.matmul(np.linalg.inv(T),rtest)
-
-    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
-            + (-np.sin(inc) * np.cos(aop) * ydottest)
             
     Rtest[2] = Vtest
             
@@ -316,7 +323,7 @@ cov = np.cov( data.T )
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
 nwalkers = 1000
-priors = np.array([[0.,0.,0,.1,.5],[np.pi,np.pi,np.pi, 2, .999]])
+priors = np.array([[0.,0.,0,.1,.5],[2 * np.pi, 2 * np.pi, 2 * np.pi, 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
 # Initialize the chain
@@ -365,47 +372,47 @@ fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
 fig.set_size_inches(10,10)
 plt.show()
 
-print("MCMC")
-# perform MCMC
-pos, prob, state  = sampler.run_mcmc(pos, 1000)
-time1=time.time()
-print time1-time0
+#print("MCMC")
+## perform MCMC
+#pos, prob, state  = sampler.run_mcmc(pos, 1000)
+#time1=time.time()
+#print time1-time0
+##
+#samples = sampler.flatchain
+#print(samples.shape)
 #
-samples = sampler.flatchain
-print(samples.shape)
-
-samples[:,0:3] = np.degrees(samples[:,0:3])
-
+#samples[:,0:3] = np.degrees(samples[:,0:3])
 #
+##
+##
+##
+##fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
+##                   range=prange,
+##                   quantiles=[0.16, 0.5, 0.84], show_titles=True,
+##                   labels_args={"fontsize": 40})
+##
+##fig.set_size_inches(10,10)
+#sampler.acceptance_fraction
 #
+#samples[:,0:3] = np.radians(samples[:,0:3])
 #
+#aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+#            zip(*np.percentile(samples, [16, 50, 84],
+#            axis=0)))
+#aop=aop[0]
+#loan=loan[0]
+#inc=inc[0]
+#a=a[0]
+#e=e[0]
+#pbest=np.array([aop, loan, inc, a, e])
+#
+#print(pbest)
+#
+#PlotFunc(pbest)
+#
+###let's plot the results
 #fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-#                   range=prange,
-#                   quantiles=[0.16, 0.5, 0.84], show_titles=True,
-#                   labels_args={"fontsize": 40})
-#
+#                    range=prange)
 #fig.set_size_inches(10,10)
-sampler.acceptance_fraction
-
-samples[:,0:3] = np.radians(samples[:,0:3])
-
-aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-            zip(*np.percentile(samples, [16, 50, 84],
-            axis=0)))
-aop=aop[0]
-loan=loan[0]
-inc=inc[0]
-a=a[0]
-e=e[0]
-pbest=np.array([aop, loan, inc, a, e])
-
-print(pbest)
-
-PlotFunc(pbest)
-
-##let's plot the results
-fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-                    range=prange)
-fig.set_size_inches(10,10)
-plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
-plt.show()
+#plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
+#plt.show()
