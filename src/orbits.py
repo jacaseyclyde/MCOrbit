@@ -87,7 +87,7 @@ def EllipseFunc(p):
     G = 6.67e-11 # m^3 kg^-1 s^-2
 #    k=1e-1
     
-    pcToKm = 3.0857e+13 # conversion factor for going from pc to km
+    pcToKm = 3.0857e+13 # conversion factor for going from pc to km. Wikipedia
     
     a = a * pcToKm
     
@@ -130,6 +130,7 @@ def EllipseFunc(p):
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
+    rtest = rtest / pcToKm
     Rtest=np.matmul(np.linalg.inv(T),rtest)
             
     Rtest[2] = Vtest
@@ -286,7 +287,8 @@ def lnProb(theta,D,cov):
     lp = lnPrior(theta)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + lnLike(theta,D,cov)
+    ll = lnLike(theta,D,cov)
+    return lp + ll
     
 # %%
 
@@ -372,47 +374,47 @@ fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
 fig.set_size_inches(10,10)
 plt.show()
 
-#print("MCMC")
-## perform MCMC
-#pos, prob, state  = sampler.run_mcmc(pos, 1000)
-#time1=time.time()
-#print time1-time0
-##
-#samples = sampler.flatchain
-#print(samples.shape)
+print("MCMC")
+# perform MCMC
+pos, prob, state  = sampler.run_mcmc(pos, 1000)
+time1=time.time()
+print time1-time0
 #
-#samples[:,0:3] = np.degrees(samples[:,0:3])
+samples = sampler.flatchain
+print(samples.shape)
+
+samples[:,0:3] = np.degrees(samples[:,0:3])
+
 #
-##
-##
-##
-##fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-##                   range=prange,
-##                   quantiles=[0.16, 0.5, 0.84], show_titles=True,
-##                   labels_args={"fontsize": 40})
-##
-##fig.set_size_inches(10,10)
-#sampler.acceptance_fraction
 #
-#samples[:,0:3] = np.radians(samples[:,0:3])
 #
-#aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-#            zip(*np.percentile(samples, [16, 50, 84],
-#            axis=0)))
-#aop=aop[0]
-#loan=loan[0]
-#inc=inc[0]
-#a=a[0]
-#e=e[0]
-#pbest=np.array([aop, loan, inc, a, e])
-#
-#print(pbest)
-#
-#PlotFunc(pbest)
-#
-###let's plot the results
 #fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-#                    range=prange)
+#                   range=prange,
+#                   quantiles=[0.16, 0.5, 0.84], show_titles=True,
+#                   labels_args={"fontsize": 40})
+#
 #fig.set_size_inches(10,10)
-#plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
-#plt.show()
+sampler.acceptance_fraction
+
+samples[:,0:3] = np.radians(samples[:,0:3])
+
+aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+            zip(*np.percentile(samples, [16, 50, 84],
+            axis=0)))
+aop=aop[0]
+loan=loan[0]
+inc=inc[0]
+a=a[0]
+e=e[0]
+pbest=np.array([aop, loan, inc, a, e])
+
+print(pbest)
+
+PlotFunc(pbest)
+
+##let's plot the results
+fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
+                    range=prange)
+fig.set_size_inches(10,10)
+plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
+plt.show()
