@@ -85,7 +85,7 @@ def EllipseFunc(p):
     Mdyn = 4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
     Msun = 1.99e+30 # kg
     G = 6.67e-11 # m^3 kg^-1 s^-2
-#    k=1e-1
+#    k=1e-1the
     
     pcToKm = 3.0857e+13 # conversion factor for going from pc to km. Wikipedia
     
@@ -133,7 +133,8 @@ def EllipseFunc(p):
     rtest = rtest / pcToKm
     Rtest=np.matmul(np.linalg.inv(T),rtest)
             
-    Rtest[2] = Vtest
+#    Rtest[2] = Vtest
+    Rtest = Rtest[:-1]
             
     return Rtest.T # returning the transpose so that each point on the ellipse
                    # can be treated discretely
@@ -315,7 +316,7 @@ Yerr=my_data[:,4]
 Verr=my_data[:,5]
 Verr[Verr==0]=4e-2
 
-data = np.array([X,Y,V]).T
+data = np.array([X,Y]).T
 cov = np.cov( data.T )
 
 # =============================================================================
