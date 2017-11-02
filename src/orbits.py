@@ -334,6 +334,9 @@ cov = np.cov( data.T )
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
 nwalkers = 1000
+
+nburn = 300
+niter = 1000
 priors = np.array([[0.,0.,0,.1,.5],[2 * np.pi, 2 * np.pi, 2 * np.pi, 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
@@ -372,7 +375,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov])
 time0 = time.time()
 print("burning in")
 # burnin phase
-pos,prob,state = sampler.run_mcmc(pos, 300)
+pos,prob,state = sampler.run_mcmc(pos, nburn)
 time1=time.time()
 print time1-time0
 
@@ -385,7 +388,7 @@ plt.show()
 
 print("MCMC")
 # perform MCMC
-pos, prob, state  = sampler.run_mcmc(pos, 1000)
+pos, prob, state  = sampler.run_mcmc(pos, niter)
 time1=time.time()
 print time1-time0
 #
