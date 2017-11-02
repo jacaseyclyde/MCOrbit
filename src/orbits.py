@@ -335,8 +335,8 @@ cov = np.cov( data.T )
 ndim = 5
 nwalkers = 1000
 
-nburn = 300
-niter = 1000
+nburn = 3000
+niter = 10000
 priors = np.array([[0.,0.,0,.1,.5],[2 * np.pi, 2 * np.pi, 2 * np.pi, 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
@@ -367,48 +367,55 @@ print "compiling post"
 print "posts done, loading sampler"
 
 
+# Set up backend so we can save chain in case of catastrophe
+# note that this requires h5py and the latest version of emcee on github
+filename = 'chain.h5'
+backend = emcee.backends.HDFBackend(filename)
+backend.reset(nwalkers, ndim)
+
 # Let us setup the emcee Ensemble Sampler
 # It is very simple: just one, self-explanatory line
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov])
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov], backend=backend)
 
-
-time0 = time.time()
-print("burning in")
-# burnin phase
-pos,prob,state = sampler.run_mcmc(pos, nburn)
-time1=time.time()
-print time1-time0
-
-time0 = time.time()
-print('Burned in')
-fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-                    range=prange)
-fig.set_size_inches(10,10)
-plt.show()
 
 print("MCMC")
-# perform MCMC
-pos, prob, state  = sampler.run_mcmc(pos, niter)
-time1=time.time()
-print time1-time0
-#
-samples = sampler.flatchain
-print(samples.shape)
+old_tau = np.inf
+for sample in sampler.sample(pos, iterations=nburn, progress=True):
+    if sample.iteration % 100:
+        continue
+    
+    #check convergence
+    tau = sampler.get_autocorr_time(tol=0)
+    converged = np.all(tau * 100 < sampler.iteration)
+    converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+    if converged:
+        break
+    old_tau = tau
 
-samples[:,0:3] = np.degrees(samples[:,0:3])
+tau = sampler.get_autocorr_time()
+burnin = int(2 * np.max(tau))
+thin = int(0.5 * np.min(tau))
+samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+log_prob_samples = sampler.get_log_prob(discard=burnin, flat=True, thin=thin)
+log_prior_samples = sampler.get_blobs(discard=burnin, flat=True, thin=thin)
 
-#
-#
-#
-#fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-#                   range=prange,
-#                   quantiles=[0.16, 0.5, 0.84], show_titles=True,
-#                   labels_args={"fontsize": 40})
-#
-#fig.set_size_inches(10,10)
-sampler.acceptance_fraction
+print("burn-in: {0}".format(burnin))
+print("thin: {0}".format(thin))
+print("flat chain shape: {0}".format(samples.shape))
+print("flat log prob shape: {0}".format(log_prob_samples.shape))
+print("flat log prior shape: {0}".format(log_prior_samples.shape))
 
-samples[:,0:3] = np.radians(samples[:,0:3])
+
+# let's plot the results
+all_samples = np.concatenate((
+    samples, log_prob_samples[:, None], log_prior_samples[:, None]
+), axis=1)
+
+fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
+                    range=prange)
+fig.set_size_inches(10,10)
+plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
+plt.show()
 
 aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
             zip(*np.percentile(samples, [16, 50, 84],
@@ -423,10 +430,3 @@ pbest=np.array([aop, loan, inc, a, e])
 print(pbest)
 
 PlotFunc(pbest)
-
-##let's plot the results
-fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-                    range=prange)
-fig.set_size_inches(10,10)
-plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
-plt.show()
