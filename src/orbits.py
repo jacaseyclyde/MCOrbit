@@ -26,7 +26,6 @@ import corner
 print("import MCMC")
 import emcee
 print("import time")
-import time
 import datetime
 print("import warn")
 import warnings
@@ -335,36 +334,35 @@ cov = np.cov( data.T )
 ndim = 5
 nwalkers = 1000
 
-nburn = 3000
-niter = 10000
+n_max = 10000
 priors = np.array([[0.,0.,0,.1,.5],[2 * np.pi, 2 * np.pi, 2 * np.pi, 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
 # Initialize the chain
 # Choice 1: chain uniformly distributed in the range of the parameters
-print "initializing parameters"
+print("initializing parameters")
 pos_min = priors[0,:]
 pos_max = priors[1,:]
 psize = pos_max - pos_min
 pos = [pos_min + psize*np.random.rand(ndim) for i in range(nwalkers)]
-print "priors"
-# Visualize the initialization
-fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-                    range=prange)
-fig.set_size_inches(10,10)
-
-
-plt.savefig(outpath + stamp + 'priors.pdf',bbox_inches='tight')
-plt.show()
+#print "priors"
+## Visualize the initialization
+#fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
+#                    range=prange)
+#fig.set_size_inches(10,10)
+#
+#
+#plt.savefig(outpath + stamp + 'priors.pdf',bbox_inches='tight')
+#plt.show()
 
 # Define the posterior PDF
 # Reminder: post_pdf(theta, data) = likelihood(data, theta) * prior_pdf(theta)
 # We take the logarithm since emcee needs it.
-print "compiling post"
+print("compiling post")
 # As prior, we assume an 'uniform' prior (i.e. constant prob. density)
 
 
-print "posts done, loading sampler"
+print("posts done, loading sampler")
 
 
 # Set up backend so we can save chain in case of catastrophe
@@ -377,11 +375,10 @@ backend.reset(nwalkers, ndim)
 # It is very simple: just one, self-explanatory line
 sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov], backend=backend)
 
-
-print("MCMC")
+print("Running MCMC")
 old_tau = np.inf
-for sample in sampler.sample(pos, iterations=nburn, progress=True):
-    if sample.iteration % 100:
+for sample in sampler.sample(pos, iterations=n_max, progress=True):
+    if sampler.iteration % 100:
         continue
     
     #check convergence
