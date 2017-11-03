@@ -25,6 +25,9 @@ print("import corner")
 import corner
 print("import MCMC")
 import emcee
+print("multiprocessing imports")
+from multiprocessing import Pool
+from multiprocessing import cpu_count
 print("import time")
 import datetime
 print("import warn")
@@ -332,9 +335,9 @@ cov = np.cov( data.T )
 
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
-nwalkers = 1000
+nwalkers = 100
 
-n_max = 10000
+n_max = 1000
 priors = np.array([[0.,0.,0,.1,.5],[2 * np.pi, 2 * np.pi, 2 * np.pi, 2, .999]])
 prange = np.ndarray.tolist(priors.T)
 
@@ -369,25 +372,27 @@ print("posts done, loading sampler")
 # note that this requires h5py and the latest version of emcee on github
 filename = 'chain.h5'
 backend = emcee.backends.HDFBackend(filename)
-backend.reset(nwalkers, ndim)
+# backend.reset(nwalkers, ndim) # uncomment this line to start the simulation from scratch
 
-# Let us setup the emcee Ensemble Sampler
-# It is very simple: just one, self-explanatory line
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov], backend=backend)
 
-print("Running MCMC")
-old_tau = np.inf
-for sample in sampler.sample(pos, iterations=n_max, progress=True):
-    if sampler.iteration % 100:
-        continue
-    
-    #check convergence
-    tau = sampler.get_autocorr_time(tol=0)
-    converged = np.all(tau * 100 < sampler.iteration)
-    converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-    if converged:
-        break
-    old_tau = tau
+with Pool() as pool:
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov], 
+                                    pool=pool, backend=backend)
+
+    ncpu = cpu_count()
+    print("Running MCMC on {0} CPUs".format(ncpu))
+    old_tau = np.inf
+    for sample in sampler.sample(pos, iterations=n_max, progress=True):
+        if sampler.iteration % 100:
+            continue
+        
+        #check convergence
+        tau = sampler.get_autocorr_time(tol=0)
+        converged = np.all(tau * 100 < sampler.iteration)
+        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+        if converged:
+            break
+        old_tau = tau
 
 tau = sampler.get_autocorr_time()
 burnin = int(2 * np.max(tau))
