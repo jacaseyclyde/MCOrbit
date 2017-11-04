@@ -326,8 +326,8 @@ Yerr=my_data[:,4]
 Verr=my_data[:,5]
 Verr[Verr==0]=4e-2
 
-data = np.array([X,Y]).T
-cov = np.cov( data.T )
+global data = np.array([X,Y]).T
+global cov = np.cov( data.T )
 
 # =============================================================================
 # MC MC
@@ -376,8 +376,7 @@ backend = emcee.backends.HDFBackend(filename)
 
 
 with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, args=[data,cov], 
-                                    pool=pool, backend=backend)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
 
     ncpu = cpu_count()
     print("Running MCMC on {0} CPUs".format(ncpu))
