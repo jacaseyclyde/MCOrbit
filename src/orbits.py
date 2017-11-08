@@ -47,6 +47,10 @@ global stamp
 datafile='../dat/CLF-Sim.csv'
 outpath='../out/'
 
+# setting up global ellipse parameter
+tspace=1000
+ttest=np.linspace(0 , 2 * np.pi , tspace)
+
 # =============================================================================
 # =============================================================================
 # # Functions
@@ -108,14 +112,7 @@ def EllipseFunc(p):
     
     '''
     Generate Ellipse
-    '''
-    # Generate ellipse parameter, t
-    global tspace
-    tspace=1000
-    
-    global ttest
-    ttest=np.linspace(0 , 2 * np.pi , tspace)
-    
+    '''    
     # Parametric coordinates
     xtest=-x0+a*np.cos(ttest)
     ytest=b*np.sin(ttest)
@@ -378,20 +375,20 @@ backend = emcee.backends.HDFBackend(filename)
 with Pool() as pool:
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
 
-#    ncpu = cpu_count()
-#    print("Running MCMC on {0} CPUs".format(ncpu))
-#    old_tau = np.inf
-#    for sample in sampler.sample(pos, iterations=n_max, progress=True):
-#        if sampler.iteration % 100:
-#            continue
-#        
-#        #check convergence
-#        tau = sampler.get_autocorr_time(tol=0)
-#        converged = np.all(tau * 100 < sampler.iteration)
-#        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-#        if converged:
-#            break
-#        old_tau = tau
+    ncpu = cpu_count()
+    print("Running MCMC on {0} CPUs".format(ncpu))
+    old_tau = np.inf
+    for sample in sampler.sample(pos, iterations=n_max, progress=True):
+        if sampler.iteration % 100:
+            continue
+        
+        #check convergence
+        tau = sampler.get_autocorr_time(tol=0)
+        converged = np.all(tau * 100 < sampler.iteration)
+        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+        if converged:
+            break
+        old_tau = tau
 
 tau = [91.64417, 104.07634, 94.89677, 96.07088, 123.73447] # sampler.get_autocorr_time()
 burnin = int(2 * np.max(tau))
