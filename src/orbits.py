@@ -323,7 +323,7 @@ Yerr=my_data[:,4]
 Verr=my_data[:,5]
 Verr[Verr==0]=4e-2
 
-data = (np.array([X,Y]).T)
+data = (np.array([X,Y,V]).T)
 cov = np.cov( data.T )
 
 # =============================================================================
@@ -360,7 +360,7 @@ pos = [pos_min + psize*np.random.rand(ndim) for i in range(nwalkers)]
 # note that this requires h5py and the latest version of emcee on github
 filename = 'chain.h5'
 backend = emcee.backends.HDFBackend(filename)
-# backend.reset(nwalkers, ndim) # uncomment this line to start the simulation from scratch
+backend.reset(nwalkers, ndim) # uncomment this line to start the simulation from scratch
 
 
 with Pool() as pool:
