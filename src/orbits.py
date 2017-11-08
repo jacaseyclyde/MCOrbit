@@ -17,6 +17,7 @@ Modified by J. Andrew Casey-Clyde (@jacaseyclyde)
 
 print('import os')
 import os
+import sys
 print("import np")
 import numpy as np
 print("import plt")
@@ -119,13 +120,17 @@ def EllipseFunc(p):
     ztest=np.zeros_like(xtest)
     rtest = np.sqrt(xtest**2 + ytest**2)
     
-    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
-                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
-    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
-                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+    sqrtArg = (GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2)
+    
+    if ( sqrtArg < 0.).any():
+        print("GM = {0}, a = {1}, l = {2}, rmax = {3}, rmin = {4}".format(GM, a, l, np.max(rtest), np.min(rtest)))
+        print("sqrt arg = {0}".format(sqrtArg))
+        print("r = {0}".format(rtest))
+        
+    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) * np.sqrt(sqrtArg)
+    ydottest = ((xtest * l) / rtest**2) + (ytest / rtest) * np.sqrt(sqrtArg)
                 
-    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
-            + (-np.sin(inc) * np.cos(aop) * ydottest)
+    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) + (-np.sin(inc) * np.cos(aop) * ydottest)
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
@@ -363,7 +368,8 @@ backend.reset(nwalkers, ndim) # uncomment this line to start the simulation from
 
 
 with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
+    # sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, backend=backend)
 
     ncpu = cpu_count()
     print("Running MCMC on {0} CPUs".format(ncpu))
