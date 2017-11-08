@@ -91,11 +91,11 @@ def EllipseFunc(p):
     Mdyn = 4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
     Msun = 1.99e+30 # kg
     G = 6.67e-11 # m^3 kg^-1 s^-2
-#    k=1e-1the
+#    k=1e-1
     
     pcToKm = 3.0857e+13 # conversion factor for going from pc to km. Wikipedia
     
-#    a = a * pcToKm
+    a = a * pcToKm
     
     # should probably get better numbers than general googling but this works for now
     GM = G * Mdyn * Msun / 1e+9 # last part converting from m^3 to km^3
@@ -119,21 +119,20 @@ def EllipseFunc(p):
     ztest=np.zeros_like(xtest)
     rtest = np.sqrt(xtest**2 + ytest**2)
     
-#    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
-#                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
-#    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
-#                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) \
+                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
+    ydottest = -((xtest * l) / rtest**2) + (ytest / rtest) \
+                * np.sqrt((GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2))
                 
-#    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
-#            + (-np.sin(inc) * np.cos(aop) * ydottest)
+    Vtest = (np.sin(inc) * np.sin(aop) * xdottest) \
+            + (-np.sin(inc) * np.cos(aop) * ydottest)
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
-#    rtest = rtest / pcToKm
+    rtest = rtest / pcToKm
     Rtest=np.matmul(np.linalg.inv(T),rtest)
             
-#    Rtest[2] = Vtest
-    Rtest = Rtest[:-1]
+    Rtest[2] = Vtest
             
     return Rtest.T # returning the transpose so that each point on the ellipse
                    # can be treated discretely
