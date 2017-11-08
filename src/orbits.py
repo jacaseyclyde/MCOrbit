@@ -345,7 +345,8 @@ pos_min = priors[0,:]
 pos_max = priors[1,:]
 psize = pos_max - pos_min
 pos = [pos_min + psize*np.random.rand(ndim) for i in range(nwalkers)]
-#print "priors"
+
+#print "priors" (really only needed if there's reasons to suspect initialization causing problems)
 ## Visualize the initialization
 #fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
 #                    range=prange)
@@ -354,16 +355,6 @@ pos = [pos_min + psize*np.random.rand(ndim) for i in range(nwalkers)]
 #
 #plt.savefig(outpath + stamp + 'priors.pdf',bbox_inches='tight')
 #plt.show()
-
-# Define the posterior PDF
-# Reminder: post_pdf(theta, data) = likelihood(data, theta) * prior_pdf(theta)
-# We take the logarithm since emcee needs it.
-print("compiling post")
-# As prior, we assume an 'uniform' prior (i.e. constant prob. density)
-
-
-print("posts done, loading sampler")
-
 
 # Set up backend so we can save chain in case of catastrophe
 # note that this requires h5py and the latest version of emcee on github
@@ -395,22 +386,19 @@ burnin = int(2 * np.max(tau))
 thin = int(0.5 * np.min(tau))
 samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
 log_prob_samples = sampler.get_log_prob(discard=burnin, flat=True, thin=thin)
-# log_prior_samples = sampler.get_blobs(discard=burnin, flat=True, thin=thin)
+log_prior_samples = sampler.get_blobs(discard=burnin, flat=True, thin=thin)
 
 print("burn-in: {0}".format(burnin))
 print("thin: {0}".format(thin))
 print("flat chain shape: {0}".format(samples.shape))
 print("flat log prob shape: {0}".format(log_prob_samples.shape))
-# print("flat log prior shape: {0}".format(log_prior_samples.shape))
+print("flat log prior shape: {0}".format(log_prior_samples.shape))
 
 
 # let's plot the results
-#all_samples = np.concatenate((
-#    samples, log_prob_samples[:, None], log_prior_samples[:, None]
-#), axis=1)
-
 all_samples = np.concatenate((
-    samples, log_prob_samples[:, None]), axis=1)
+    samples, log_prob_samples[:, None], log_prior_samples[:, None]
+), axis=1)
 
 fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
                     range=prange)
