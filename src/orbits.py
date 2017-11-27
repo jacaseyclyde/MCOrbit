@@ -120,12 +120,10 @@ def EllipseFunc(p):
     ztest=np.zeros_like(xtest)
     rtest = np.sqrt(xtest**2 + ytest**2)
     
-    sqrtArg = (GM * (2 * a - rtest) / (a * rtest)) - (l**2 / rtest**2)
+    sqrtArg = ((GM * (2 * a - rtest)) / (a * rtest)) - (l / rtest)**2
     
     if ( sqrtArg < 0.).any():
-        print("GM = {0}, a = {1}, l = {2}, rmax = {3}, rmin = {4}".format(GM, a, l, np.max(rtest), np.min(rtest)))
-        print("sqrt arg = {0}".format(sqrtArg))
-        print("r = {0}".format(rtest))
+        sqrtArg = 0. # just doing a hard cuttoff, since i'm about 90% sure that values less than 0 are due to roundoff
         
     xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) * np.sqrt(sqrtArg)
     ydottest = ((xtest * l) / rtest**2) + (ytest / rtest) * np.sqrt(sqrtArg)
@@ -336,10 +334,10 @@ cov = np.cov( data.T )
 
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
-nwalkers = 100
+nwalkers = 10
 n_max = 1000
 
-priors = np.array([[0.,0.,0,.1,.5],[2 * np.pi, 2 * np.pi, 2 * np.pi, 2, .999]])
+priors = np.array([[0.,0.,0,.1,.5],[np.pi, np.pi, np.pi, 2, 1.]])
 prange = np.ndarray.tolist(priors.T)
 
 # Initialize the chain
@@ -368,8 +366,7 @@ backend.reset(nwalkers, ndim) # uncomment this line to start the simulation from
 
 
 with Pool() as pool:
-    # sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, backend=backend)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
 
     ncpu = cpu_count()
     print("Running MCMC on {0} CPUs".format(ncpu))
@@ -386,7 +383,7 @@ with Pool() as pool:
             break
         old_tau = tau
 
-tau = [91.64417, 104.07634, 94.89677, 96.07088, 123.73447] # sampler.get_autocorr_time()
+sampler.get_autocorr_time() #insert tau here if note autocorrelated (e.g. during testing)
 burnin = int(2 * np.max(tau))
 thin = int(0.5 * np.min(tau))
 samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
@@ -397,12 +394,12 @@ print("burn-in: {0}".format(burnin))
 print("thin: {0}".format(thin))
 print("flat chain shape: {0}".format(samples.shape))
 print("flat log prob shape: {0}".format(log_prob_samples.shape))
-print("flat log prior shape: {0}".format(log_prior_samples.shape))
+print("flat log prior shape: {0}".format(np.shape(log_prior_samples)))
 
 
 # let's plot the results
 all_samples = np.concatenate((
-    samples, log_prob_samples[:, None], log_prior_samples[:, None]
+    samples, log_prob_samples[:, None]#, log_prior_samples[:, None]
 ), axis=1)
 
 fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
@@ -424,3 +421,7 @@ pbest=np.array([aop, loan, inc, a, e])
 print(pbest)
 
 PlotFunc(pbest)
+
+# bit of cleanup
+if not os.listdir(outpath):
+    os.rmdir(outpath)
