@@ -335,9 +335,10 @@ cov = np.cov( data.T )
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
 nwalkers = 10
-n_max = 1000
+n_max = 5000
 
-priors = np.array([[0.,0.,0,.1,.5],[np.pi, np.pi, np.pi, 2, 1.]])
+priors = np.array([[np.radians(50.),np.radians(120.),np.radians(270.),0.3,.5],
+                   [np.radians(70.), np.radians(150.), np.radians(330.), 0.7, 1.]])
 prange = np.ndarray.tolist(priors.T)
 
 # Initialize the chain
@@ -383,7 +384,7 @@ with Pool() as pool:
             break
         old_tau = tau
 
-sampler.get_autocorr_time() #insert tau here if note autocorrelated (e.g. during testing)
+sampler.get_autocorr_time() #insert tau here if not autocorrelated (e.g. during testing)
 burnin = int(2 * np.max(tau))
 thin = int(0.5 * np.min(tau))
 samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
