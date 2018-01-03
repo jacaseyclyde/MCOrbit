@@ -77,7 +77,7 @@ def SkytoOrb(X,Y,p):
     
     return x,y,T
 
-def EllipseFunc(p):
+def OrbitFunc(p):
     """
     Takes in coordinates ~p in radians~ and spits out f1 -- the constraint that
     the orbit must be elliptical and SgrA* lies at the focus
@@ -271,7 +271,7 @@ def lnLike(theta):
     lnL = ln(p(D|theta))
     D should be formatted as [[x,y]]
     '''
-    E = EllipseFunc(theta)
+    E = OrbitFunc(theta)
     
     lnlike = 0.
     
