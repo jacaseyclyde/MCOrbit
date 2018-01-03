@@ -239,17 +239,11 @@ def PointPointProb(d,e):
     See the definition of multivariate gaussian distributions in
     Statistics, Data Mining, and Machine Learning in Astronomy, Ivezic et al. 2014
     '''
-
-    M = len(d)
-    H = np.linalg.inv(cov)
-    
     x = d - e
-    
-    coeff = ( 1 / ((2 * np.pi)**(M / 2.)) * np.sqrt(np.linalg.det(cov)))
     
     exp = np.exp(-0.5 * np.matmul(x, np.matmul(H,x)))
     
-    return coeff * exp
+    return exp
             
 def PointModelProb(d,E):
     '''
@@ -327,6 +321,7 @@ Verr[Verr==0]=4e-2
 
 data = (np.array([X,Y,V]).T)
 cov = np.cov( data.T )
+H = np.linalg.inv(cov)
 
 # =============================================================================
 # MC MC
