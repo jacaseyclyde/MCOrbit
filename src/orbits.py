@@ -124,7 +124,7 @@ def Orbit(x0,v0,tstep):
     vel[0] = v0 * secYr / kmPc # [pc/yr]
     
     posnorm = np.linalg.norm(pos[0]) # [pc]
-    a_old = - G * MassFunc(pos[0]) / posnorm**2 # [pc/yr^2]
+    a_old = - G * MassFunc(posnorm) / posnorm**2 # [pc/yr^2]
     a_old = a_old * pos[0] / posnorm
     
     for i in range(npoints - 1):
