@@ -17,7 +17,7 @@ Modified by J. Andrew Casey-Clyde (@jacaseyclyde)
 
 print('import os')
 import os
-import sys
+#import sys
 print("import np")
 import numpy as np
 print("import plt")
@@ -48,7 +48,10 @@ global stamp
 datafile='../dat/CLF-Sim.csv'
 outpath='../out/'
 
-# setting up global ellipse parameter
+## Global Parameters
+G = 6.67e-11 # m^3 kg^-1 s^-2
+
+# global ellipse parameter
 tspace=1000
 ttest=np.linspace(0 , 2 * np.pi , tspace)
 
@@ -76,6 +79,34 @@ def SkytoOrb(X,Y,p):
     y=T[1][2]/np.cos(inc)*(-T[2][1]*Y-T[2][0]*X)+ T[1][1]*Y + T[1][0]*X
     
     return x,y,T
+    
+def Orbit(x0,v0,tstep):
+    '''
+    Takes in an initial position and velocity vector and generates an
+    integrated orbit around SgrA*. Currently ignoring units while I get the
+    structure of this chunk of code worked out
+    '''
+    npoints = 100
+    pos = np.zeros((npoints,2))
+    vel = np.zeros_like(pos)
+    
+    pos[0] = x0
+    vel[0] = v0
+    
+    posnorm = np.linalg.norm(pos[0])
+    a_old = - G * MassFunc(pos[0]) / posnorm**2
+    a_old = a_old * pos[0] / posnorm
+    
+    for i in range(npoints - 1):
+        pos[i+1] = pos[i] + vel[i] * tstep + 0.5 * a_old * tstep**2
+        
+        posnorm = np.linalg.norm(pos[i+1])
+        a_new = - G * MassFunc(pos[i+1]) / posnorm**2
+        a_new = a_new * pos[i+1] / posnorm
+        
+        vel[i+1] = vel[i] + 0.5 * (a_old + a_new) * tstep
+        
+        a_old = a_new
 
 def OrbitFunc(p):
     """
@@ -83,7 +114,7 @@ def OrbitFunc(p):
     the orbit must be elliptical and SgrA* lies at the focus
     """
 
-    (aop, loan, inc, a, e)=p
+    (aop, loan, inc, x0, v0)=p
     
     T = Transmat(p)
     
@@ -91,12 +122,11 @@ def OrbitFunc(p):
     # Msun and G are currently just based on wikipedia and probably need a better source
     Mdyn = 4.02e+6 # +/- 0.16 +/- 0.04 x 10^6 M_sun
     Msun = 1.99e+30 # kg
-    G = 6.67e-11 # m^3 kg^-1 s^-2
 #    k=1e-1
     
     pcToKm = 3.0857e+13 # conversion factor for going from pc to km. Wikipedia
     
-    a = a * pcToKm
+    #a = a * pcToKm
     
     # should probably get better numbers than general googling but this works for now
     GM = G * Mdyn * Msun / 1e+9 # last part converting from m^3 to km^3
@@ -145,7 +175,7 @@ def Transmat(p):
     Returns the Translation matrix and its derivatives. p must be given in
     radians.
     """
-    (aop, loan, inc, a, e)=p
+    (aop, loan, inc)=p
     T = np.array([[np.cos(loan)*np.cos(aop) - np.sin(loan)*np.sin(aop)*np.cos(inc),
         - np.sin(loan)*np.cos(aop) - np.cos(loan)*np.sin(aop)*np.cos(inc), 
         np.sin(aop)*np.sin(inc)],
@@ -162,13 +192,13 @@ def PlotFunc(p):
     
     X=my_data[:,0]
     Y=my_data[:,1]
-    V=my_data[:,2]
+    #V=my_data[:,2]
     
     
     (aop, loan, inc, a, e)=p
     b=a*np.sqrt(1-e**2)
     x0=a*e
-    Mdyn=4.02e+6# +/- 0.16 +/- 0.04 ? 10^6 M_sun
+    #Mdyn=4.02e+6# +/- 0.16 +/- 0.04 ? 10^6 M_sun
 
     x,y,T=SkytoOrb(X,Y,p)
     
@@ -183,8 +213,8 @@ def PlotFunc(p):
     # everything above this line can be removed and replaced with a call to 
     # EllipseFunc to get RR
     
-    r = (xx**2.+yy**2.)**.5
-    rmin=a-a*e
+    #r = (xx**2.+yy**2.)**.5
+    #rmin=a-a*e
     
     XX=RR[0,:]
     YY=RR[1,:]
