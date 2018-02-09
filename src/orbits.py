@@ -55,21 +55,26 @@ outpath='../out/'
 # =============================================================================
 
 # =============================================================================
-# Constants   
-# =============================================================================
-G = 6.67e-11 # m^3 kg^-1 s^-2
-
-# =============================================================================
 # Conversions   
 # =============================================================================
-arcsecToPc = 8e3 / 60 / 60 / 180 * np.pi # converting to pc @ gal. center
+pcArcsec = 8e3 / 60 / 60 / 180 * np.pi # [pc/arcsec] @ gal. center
+kgMsun = 1.98855e+30 # [kg/Msun]
+secYr = 60. * 60. * 24. * 365. # [s/yr]
+kmPc = 3.0857e+13 # [km/pc]
+mKm = 1.e+3 # [m/km]
+
+
+# =============================================================================
+# Constants   
+# =============================================================================
+G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2 # [pc^3 Msun^-1 yr^-2]
 
 # =============================================================================
 # Mass Data 
 # =============================================================================
 Mdat = np.genfromtxt('../dat/enclosed_mass_distribution.txt')
-Mdist = Mdat[:,0] * arcsecToPc
-Menc = Mdat[:,1]
+Mdist = Mdat[:,0] * pcArcsec # [pc]
+Menc = Mdat[:,1] # [log(Msun)]
 
 # =============================================================================
 # Other 
@@ -108,16 +113,18 @@ def Orbit(x0,v0,tstep):
     Takes in an initial position and velocity vector and generates an
     integrated orbit around SgrA*. Returns 2 arrays of position and veolocity
     vectors. Currently ignoring units until a few other things are developed
+    
+    x0 = [pc], v0 = [km/s], tstep = [yr]
     '''
-    npoints = 100
+    npoints = 100 # right now this is a completely arbitraty number
     pos = np.zeros((npoints,2))
     vel = np.zeros_like(pos)
     
-    pos[0] = x0
-    vel[0] = v0
+    pos[0] = x0 # [pc]
+    vel[0] = v0 * secYr / kmPc # [pc/yr]
     
-    posnorm = np.linalg.norm(pos[0])
-    a_old = - G * MassFunc(pos[0]) / posnorm**2
+    posnorm = np.linalg.norm(pos[0]) # [pc]
+    a_old = - G * MassFunc(pos[0]) / posnorm**2 # [pc/yr^2]
     a_old = a_old * pos[0] / posnorm
     
     for i in range(npoints - 1):
@@ -131,10 +138,16 @@ def Orbit(x0,v0,tstep):
         
         a_old = a_new
         
-    return pos,vel
+    return pos,(vel / secYr * kmPc) # [pc], [km/s]
     
 def MassFunc(dist):
-    return np.interp(dist,Mdist,Menc)
+    '''
+    Takes in a distance from SgrA* and returns the enclosed mass. Based on data
+    from Feldmeier-Krause et al. (2016), with interpolation
+    
+    dist = [pc]
+    '''
+    return 10**np.interp(dist,Mdist,Menc) # [Msun]
 
 def OrbitFunc(p):
     """
@@ -152,7 +165,7 @@ def OrbitFunc(p):
     Msun = 1.99e+30 # kg
 #    k=1e-1
     
-    pcToKm = 3.0857e+13 # conversion factor for going from pc to km. Wikipedia
+     # conversion factor for going from pc to km. Wikipedia
     
     #a = a * pcToKm
     
