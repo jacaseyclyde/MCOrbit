@@ -48,12 +48,35 @@ global stamp
 datafile='../dat/CLF-Sim.csv'
 outpath='../out/'
 
-## Global Parameters
+# =============================================================================
+# =============================================================================
+# # Global Parameters
+# =============================================================================
+# =============================================================================
+
+# =============================================================================
+# Constants   
+# =============================================================================
 G = 6.67e-11 # m^3 kg^-1 s^-2
 
-# global ellipse parameter
+# =============================================================================
+# Conversions   
+# =============================================================================
+arcsecToPc = 8e3 / 60 / 60 / 180 * np.pi # converting to pc @ gal. center
+
+# =============================================================================
+# Mass Data 
+# =============================================================================
+Mdat = np.genfromtxt('../dat/enclosed_mass_distribution.txt')
+Mdist = Mdat[:,0] * arcsecToPc
+Menc = Mdat[:,1]
+
+# =============================================================================
+# Other 
+# =============================================================================
 tspace=1000
 ttest=np.linspace(0 , 2 * np.pi , tspace)
+
 
 # =============================================================================
 # =============================================================================
@@ -83,8 +106,8 @@ def SkytoOrb(X,Y,p):
 def Orbit(x0,v0,tstep):
     '''
     Takes in an initial position and velocity vector and generates an
-    integrated orbit around SgrA*. Currently ignoring units while I get the
-    structure of this chunk of code worked out
+    integrated orbit around SgrA*. Returns 2 arrays of position and veolocity
+    vectors. Currently ignoring units until a few other things are developed
     '''
     npoints = 100
     pos = np.zeros((npoints,2))
@@ -101,12 +124,17 @@ def Orbit(x0,v0,tstep):
         pos[i+1] = pos[i] + vel[i] * tstep + 0.5 * a_old * tstep**2
         
         posnorm = np.linalg.norm(pos[i+1])
-        a_new = - G * MassFunc(pos[i+1]) / posnorm**2
+        a_new = - G * MassFunc(posnorm) / posnorm**2
         a_new = a_new * pos[i+1] / posnorm
         
         vel[i+1] = vel[i] + 0.5 * (a_old + a_new) * tstep
         
         a_old = a_new
+        
+    return pos,vel
+    
+def MassFunc(dist):
+    return np.interp(dist,Mdist,Menc)
 
 def OrbitFunc(p):
     """
