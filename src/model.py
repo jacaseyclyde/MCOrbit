@@ -9,10 +9,6 @@ import numpy as np
 
 np.set_printoptions(precision=5,threshold=np.inf)
 
-global datafile
-global outpath
-global stamp
-
 datafile='../dat/CLF-Sim.csv'
 outpath='../out/'
 
