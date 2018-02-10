@@ -203,7 +203,7 @@ def OrbitFunc(p):
     
     # Transform from Orbit to Ellipse
     rtest=np.vstack([xtest,ytest,ztest])
-    rtest = rtest / pcToKm
+    rtest = rtest / kmPc
     Rtest=np.matmul(np.linalg.inv(T),rtest)
             
     Rtest[2] = Vtest
