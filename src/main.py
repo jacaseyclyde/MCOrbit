@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 '''
 Developed by Julio S Rodriguez (@BlueEarOtter) for the purposes of fitting
 orbits to the minispiral of Sgr A West without proper motion data. There are

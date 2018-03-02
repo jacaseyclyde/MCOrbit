@@ -2,11 +2,9 @@
 
 
 '''
-Developed by Julio S Rodriguez (@BlueEarOtter) for the purposes of fitting orbits
-to the minispiral of Sgr A West without proper motion data. There are still issues
-that need to be worked out
+Created on Fri Feb  9 16:08:27 2018
 
-Modified by J. Andrew Casey-Clyde (@jacaseyclyde)
+@author: jacaseyclyde
 '''
 
 # =============================================================================
@@ -64,25 +62,6 @@ ttest=np.linspace(0 , 2 * np.pi , tspace)
 # =============================================================================
 # =============================================================================
     
-# =============================================================================
-# Geometry Functions    
-# =============================================================================
-
-def SkytoOrb(X,Y,p):
-    """
-    Takes in sky coods, X,Y, and V, as well as parameters, p, in radians. Calc-
-    ulates the transformation matrix T. Returns the Orbit coords x and y as
-    well as their associated velocities vx and vy
-    """
-    (aop, loan, inc, a, e)=p
-    
-    T=Transmat(p)
-    
-    x=T[0][2]/np.cos(inc)*(-T[2][1]*Y-T[2][0]*X)+ T[0][1]*Y + T[0][0]*X
-    y=T[1][2]/np.cos(inc)*(-T[2][1]*Y-T[2][0]*X)+ T[1][1]*Y + T[1][0]*X
-    
-    return x,y,T
-    
 def Orbit(x0,v0,tstep):
     '''
     Takes in an initial position and velocity vector and generates an
@@ -123,6 +102,39 @@ def MassFunc(dist):
     dist = [pc]
     '''
     return 10**np.interp(dist,Mdist,Menc) # [Msun]
+
+def Transmat(aop,loan,inc):
+    """
+    Returns the Translation matrix and its derivatives.
+    
+    aop = [rad], loan = [rad], inc = [rad]
+    """
+
+    T = np.array([[np.cos(loan)*np.cos(aop) - np.sin(loan)*np.sin(aop)*np.cos(inc),
+        - np.sin(loan)*np.cos(aop) - np.cos(loan)*np.sin(aop)*np.cos(inc), 
+        np.sin(aop)*np.sin(inc)],
+        
+        [np.cos(loan)*np.sin(aop) + np.sin(loan)*np.cos(aop)*np.cos(inc),
+        -np.sin(loan)*np.sin(aop) + np.cos(loan)*np.cos(aop)*np.cos(inc),
+        - np.cos(aop)*np.sin(inc)],
+         
+        [np.sin(loan)*np.sin(inc), np.cos(loan)*np.sin(inc), np.cos(inc)]])
+    return T
+
+def SkytoOrb(X,Y,p):
+    """
+    Takes in sky coods, X,Y, and V, as well as parameters, p, in radians. Calc-
+    ulates the transformation matrix T. Returns the Orbit coords x and y as
+    well as their associated velocities vx and vy
+    """
+    (aop, loan, inc, a, e)=p
+    
+    T=Transmat(p)
+    
+    x=T[0][2]/np.cos(inc)*(-T[2][1]*Y-T[2][0]*X)+ T[0][1]*Y + T[0][0]*X
+    y=T[1][2]/np.cos(inc)*(-T[2][1]*Y-T[2][0]*X)+ T[1][1]*Y + T[1][0]*X
+    
+    return x,y,T
 
 def OrbitFunc(p):
     """
@@ -185,23 +197,6 @@ def OrbitFunc(p):
             
     return Rtest.T # returning the transpose so that each point on the ellipse
                    # can be treated discretely
-
-def Transmat(p):
-    """
-    Returns the Translation matrix and its derivatives. p must be given in
-    radians.
-    """
-    (aop, loan, inc)=p
-    T = np.array([[np.cos(loan)*np.cos(aop) - np.sin(loan)*np.sin(aop)*np.cos(inc),
-        - np.sin(loan)*np.cos(aop) - np.cos(loan)*np.sin(aop)*np.cos(inc), 
-        np.sin(aop)*np.sin(inc)],
-        
-        [np.cos(loan)*np.sin(aop) + np.sin(loan)*np.cos(aop)*np.cos(inc),
-        -np.sin(loan)*np.sin(aop) + np.cos(loan)*np.cos(aop)*np.cos(inc),
-        - np.cos(aop)*np.sin(inc)],
-         
-        [np.sin(loan)*np.sin(inc), np.cos(loan)*np.sin(inc), np.cos(inc)]])
-    return T
 
 def PlotFunc(p):
     my_data = np.genfromtxt(datafile, delimiter=',')
