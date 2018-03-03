@@ -90,7 +90,7 @@ def Orbit(x0,v0,tstep):
     
     x0 = [pc], v0 = [km/s], tstep = [yr]
     '''
-    npoints = 100 # right now this is a completely arbitraty number
+    npoints = 100 # right now this is a completely arbitrary number
     pos = np.zeros((npoints,3))
     vel = np.zeros_like(pos)
     
@@ -123,20 +123,25 @@ def MassFunc(dist):
     '''
     return 10**np.interp(dist,Mdist,Menc) # [Msun]
 
-def OrbitFunc(p):
+def Sky(p):
     """
-    Takes in coordinates ~p in radians~ and spits out f1 -- the constraint that
+    Takes in coordinates ~p in degrees~ and spits out f1 -- the constraint that
     the orbit must be elliptical and SgrA* lies at the focus
     """
 
-    (aop, loan, inc, x0, v0)=p
+    (aop, loan, inc, x0, v0) = p
+    
+    # convert from degrees to radians
+    aop = aop * np.pi / 180.
+    loan = loan * np.pi / 180.
+    inc = inc * np.pi / 180.
     
     T = Transmat(aop, loan, inc)
     orbr, orbv = Orbit(x0, v0, tstep)
              
     # Transform from Orbit plane to Sky plane
-    skyR = np.matmul(np.linalg.inv(T), orbr)
-    skyV = np.matmul(np.linalg.inv(T), orbv)
+    skyR = np.matmul(np.linalg.inv(T), orbr.T)
+    skyV = np.matmul(np.linalg.inv(T), orbv.T)
     losV = skyV[-1]
             
     model = np.array([skyR[0],skyR[1],losV])
