@@ -78,9 +78,9 @@ def rot_mat(aop, loan, inc):
 
     T = np.array([[np.cos(loan) * np.cos(aop) - np.sin(loan) * np.sin(aop)
                   * np.cos(inc),
-                  - np.sin(loan)*np.cos(aop) - np.cos(loan) * np.sin(aop)
+                  - np.sin(loan) * np.cos(aop) - np.cos(loan) * np.sin(aop)
                   * np.cos(inc),
-                  np.sin(aop)*np.sin(inc)],
+                  np.sin(aop) * np.sin(inc)],
 
                   [np.cos(loan) * np.sin(aop) + np.sin(loan) * np.cos(aop)
                   * np.cos(inc),
@@ -146,6 +146,8 @@ def sky(p):
     orbr, orbv = orbit(x0, v0, tstep)
 
     # Transform from Orbit plane to Sky plane
+    # We can use the transpose of the rotation matrix instead of the inverse
+    # because it's Hermition
     skyR = np.matmul(rot.T, orbr.T)
     skyV = np.matmul(rot.T, orbv.T)
     losV = skyV[-1]
@@ -165,7 +167,6 @@ def plot_func(orb, sky):
     plt.title('Sky Plane')  # . p = {}'.format(p))
     plt.xlabel('Offset (pc)')
     plt.ylabel('Offset (pc)')
-    plt.gca().invert_xaxis()
     plt.savefig(outpath + 'skyplane.pdf', bbox_inches='tight')
     plt.legend()
     plt.show()
