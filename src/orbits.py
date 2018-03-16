@@ -12,7 +12,6 @@ Created on Fri Feb  9 16:08:27 2018
 # # Topmatter
 # =============================================================================
 # =============================================================================
-
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -51,7 +50,8 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # =============================================================================
 # Other
 # =============================================================================
-tstep = 1000
+tstep = 100
+ttot = 100000
 
 
 # =============================================================================
@@ -95,7 +95,7 @@ def rot_mat(aop, loan, inc):
     return T
 
 
-def orbit(x0, v0, tstep):
+def orbit(x0, v0, tstep, ttot):
     '''
     Takes in an initial position and velocity vector and generates an
     integrated orbit around SgrA*. Returns 2 arrays of position and veolocity
@@ -103,8 +103,7 @@ def orbit(x0, v0, tstep):
 
     x0 = [pc], v0 = [km/s], tstep = [yr]
     '''
-
-    npoints = 100  # right now this is a completely arbitraty number
+    npoints = int(ttot / tstep)
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
 
@@ -143,7 +142,7 @@ def sky(p):
     inc = inc * np.pi / 180.
 
     rot = rot_mat(aop, loan, inc)
-    orbr, orbv = orbit(x0, v0, tstep)
+    orbr, orbv = orbit(x0, v0, tstep, ttot)
 
     # Transform from Orbit plane to Sky plane
     # We can use the transpose of the rotation matrix instead of the inverse
