@@ -52,8 +52,7 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # =============================================================================
 # Other
 # =============================================================================
-tspace = 1000
-ttest = np.linspace(0, 2 * np.pi, tspace)
+tstep = 1000
 
 
 # =============================================================================
@@ -70,6 +69,7 @@ def Orbit(x0, v0, tstep):
 
     x0 = [pc], v0 = [km/s], tstep = [yr]
     '''
+
     npoints = 100  # right now this is a completely arbitraty number
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
@@ -107,7 +107,7 @@ def MassFunc(dist):
 
 def Transmat(aop, loan, inc):
     """
-    Returns the Translation matrix and its derivatives.
+    Returns the Translation matrix
 
     aop = [rad], loan = [rad], inc = [rad]
     """
@@ -150,64 +150,30 @@ def SkytoOrb(X, Y, p):
     return x, y, T
 
 
-def OrbitFunc(p):
+def Sky(p):
     """
-    Takes in coordinates ~p in radians~ and spits out f1 -- the constraint that
+    Takes in coordinates ~p in degrees~ and spits out f1 -- the constraint that
     the orbit must be elliptical and SgrA* lies at the focus
     """
 
     (aop, loan, inc, x0, v0) = p
 
-    T = Transmat(p)
+    # convert from degrees to radians
+    aop = aop * np.pi / 180.
+    loan = loan * np.pi / 180.
+    inc = inc * np.pi / 180.
 
-    # k is the relative velocity weight
-    # Msun and G are currently just based on wikipedia and probably need a
-    # better source
-    Mdyn = 4.02e+6  # +/- 0.16 +/- 0.04 x 10^6 M_sun
-    Msun = 1.99e+30  # kg
+    T = Transmat(aop, loan, inc)
+    orbr, orbv = Orbit(x0, v0, tstep)
 
-    # should probably get better numbers than general googling but this works
-    # for now
-    GM = G * Mdyn * Msun / 1e+9  # last part converting from m^3 to km^3
+    # Transform from Orbit plane to Sky plane
+    skyR = np.matmul(np.linalg.inv(T), orbr.T)
+    skyV = np.matmul(np.linalg.inv(T), orbv.T)
+    losV = skyV[-1]
 
-    # Sanity Check
-    if e >= 1.:
-        return np.inf
+    model = np.array([skyR[0], skyR[1], losV])
 
-    b = a * np.sqrt(1 - e**2.)
-    x0 = a * e
-
-    # reduced angular momentum
-    l = (a - a * e) * np.sqrt(GM * (1 + e) / (a * (1 - e)))
-
-    '''
-    Generate Ellipse
-    '''
-    # Parametric coordinates
-    xtest = -x0 + a * np.cos(ttest)
-    ytest = b * np.sin(ttest)
-    ztest = np.zeros_like(xtest)
-    rtest = np.sqrt(xtest**2 + ytest**2)
-
-    sqrtArg = ((GM * (2 * a - rtest)) / (a * rtest)) - (l / rtest)**2
-
-    if (sqrtArg < 0.).any():
-        sqrtArg = 0.  # hard cuttoff for rounded vals
-
-    xdottest = -((ytest * l) / rtest**2) + (xtest / rtest) * np.sqrt(sqrtArg)
-    ydottest = ((xtest * l) / rtest**2) + (ytest / rtest) * np.sqrt(sqrtArg)
-
-    Vtest = np.sin(inc) * np.sin(aop) * xdottest - np.sin(inc) * np.cos(aop)
-    * ydottest
-
-    # Transform from Orbit to Ellipse
-    rtest = np.vstack([xtest, ytest, ztest])
-    rtest = rtest / kmPc
-    Rtest = np.matmul(np.linalg.inv(T), rtest)
-
-    Rtest[2] = Vtest
-
-    return Rtest.T  # return transpose to get individual ellipse points
+    return model.T  # return transpose to get individual ellipse points
 
 
 def PlotFunc(p):
