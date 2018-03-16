@@ -104,7 +104,7 @@ H = np.linalg.inv(cov)
 
 # Now, let's setup some parameters that define the MCMC
 ndim = 5
-nwalkers = 10
+nwalkers = 100
 n_max = 1000
 
 priors = np.array([[0., 0., 0., .1, .5], [np.pi, np.pi, np.pi, 2, 1.]])
@@ -133,9 +133,10 @@ filename = 'chain.h5'
 backend = emcee.backends.HDFBackend(filename)
 backend.reset(nwalkers, ndim)  # uncomment to start simulation from scratch
 
+m = model.Model(my_data)
 
 with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, model.ln_prob, pool=pool,
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                     backend=backend)
 
     ncpu = cpu_count()
