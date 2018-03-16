@@ -185,5 +185,3 @@ def plot_func(p):
     plt.savefig(outpath + 'orbitplane.pdf', bbox_inches='tight')
     plt.legend()
     plt.show()
-
-    return
