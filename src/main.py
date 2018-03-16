@@ -133,7 +133,7 @@ filename = 'chain.h5'
 backend = emcee.backends.HDFBackend(filename)
 backend.reset(nwalkers, ndim)  # uncomment to start simulation from scratch
 
-m = model.Model(my_data)
+m = model.Model(data)
 
 with Pool() as pool:
     sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
