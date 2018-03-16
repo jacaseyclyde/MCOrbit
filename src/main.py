@@ -128,14 +128,15 @@ plt.savefig(outpath + stamp + 'priors.pdf', bbox_inches='tight')
 plt.show()
 
 # Set up backend so we can save chain in case of catastrophe
-# note that this requires h5py and the latest version of emcee on github
+# note that this requires h5py and emcee 3.0.0 on github
 filename = 'chain.h5'
 backend = emcee.backends.HDFBackend(filename)
 backend.reset(nwalkers, ndim)  # uncomment to start simulation from scratch
 
 
 with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnProb, pool=pool, backend=backend)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, model.ln_prob, pool=pool,
+                                    backend=backend)
 
     ncpu = cpu_count()
     print("Running MCMC on {0} CPUs".format(ncpu))
@@ -190,7 +191,7 @@ pbest = np.array([aop, loan, inc, a, e])
 
 print(pbest)
 
-PlotFunc(pbest)
+orbits.plot_func(pbest)
 
 # bit of cleanup
 if not os.listdir(outpath):
