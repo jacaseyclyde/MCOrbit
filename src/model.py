@@ -16,13 +16,10 @@ outpath = '../out/'
 
 class Model(object):
 
-    def __init__(self, dat, bounds):
+    def __init__(self, dat):
         self.data = dat
         cov = np.cov(self.data.T)
         self.H = np.linalg.inv(cov)
-
-        self.pos_min = bounds[0, :]
-        self.pos_max = bounds[1, :]
 
     def point_point_prob(self, d, e):
         '''
@@ -72,9 +69,7 @@ class Model(object):
         '''
         The log-likelihood of the prior. Currently assuming uniform
         '''
-        if ((theta >= self.pos_min).all() and (theta < self.pos_max).all()):
-            return 0.0
-        return -np.inf
+        return 0.
 
     def ln_prob(self, theta):
         '''
