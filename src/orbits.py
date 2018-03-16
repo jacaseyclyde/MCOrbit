@@ -142,23 +142,26 @@ def sky(p):
     inc = inc * np.pi / 180.
 
     rot = rot_mat(aop, loan, inc)
-    orbr, orbv = orbit(x0, v0, tstep, ttot)
+    orb_r, orb_v = orbit(x0, v0, tstep, ttot)
 
     # Transform from Orbit plane to Sky plane
     # We can use the transpose of the rotation matrix instead of the inverse
     # because it's Hermition
-    skyR = np.matmul(rot.T, orbr.T)
-    skyV = np.matmul(rot.T, orbv.T)
-    losV = skyV[-1]
+    sky_R = np.matmul(rot.T, orb_r.T)
+    sky_V = np.matmul(rot.T, orb_v.T)
+    los_V = sky_V[-1]
 
-    model = np.array([skyR[0], skyR[1], losV])
+    model = np.array([sky_R[0], sky_R[1], los_V])
 
     return model.T  # return transpose to get individual ellipse points
 
 
-def plot_func(orb, sky):
+def plot_func(p):
+    orb_r, orb_v = orbit(p[3], p[4], tstep, ttot)
+    sky_xyv = sky(p)
+
     plt.figure(1)
-    plt.plot(sky[:, 0], sky[:, 1], 'k-', label='Gas core')
+    plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')
     plt.plot([0], [0], 'g*', label='Sgr A*')
 
     plt.grid(True)
@@ -171,7 +174,7 @@ def plot_func(orb, sky):
     plt.show()
 
     plt.figure(2)
-    plt.plot(orb[:, 0], orb[:, 1], 'k-', label='Gas core')
+    plt.plot(orb_r[:, 0], orb_r[:, 1], 'k-', label='Gas core')
     plt.plot([0], [0], 'g*', label='Sgr A*')
 
     plt.grid(True)
