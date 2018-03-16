@@ -118,21 +118,20 @@ pos_max = priors[1, :]
 psize = pos_max - pos_min
 pos = [pos_min + psize*np.random.rand(ndim) for i in range(nwalkers)]
 
-#print "priors" (really only needed if there's reasons to suspect initialization causing problems)
-## Visualize the initialization
-#fig = corner.corner(pos, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
-#                    range=prange)
-#fig.set_size_inches(10,10)
-#
-#
-#plt.savefig(outpath + stamp + 'priors.pdf',bbox_inches='tight')
-#plt.show()
+# Visualize the initialization
+fig = corner.corner(pos, labels=["$aop$", "$loan$", "$inc$", "$a$", "$e$"],
+                    range=prange)
+fig.set_size_inches(10, 10)
+
+
+plt.savefig(outpath + stamp + 'priors.pdf', bbox_inches='tight')
+plt.show()
 
 # Set up backend so we can save chain in case of catastrophe
 # note that this requires h5py and the latest version of emcee on github
 filename = 'chain.h5'
 backend = emcee.backends.HDFBackend(filename)
-backend.reset(nwalkers, ndim) # uncomment this line to start the simulation from scratch
+backend.reset(nwalkers, ndim)  # uncomment to start simulation from scratch
 
 
 with Pool() as pool:
@@ -144,8 +143,8 @@ with Pool() as pool:
     for sample in sampler.sample(pos, iterations=n_max, progress=True):
         if sampler.iteration % 100:
             continue
-        
-        #check convergence
+
+        # check convergence
         tau = sampler.get_autocorr_time(tol=0)
         converged = np.all(tau * 100 < sampler.iteration)
         converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
@@ -153,7 +152,7 @@ with Pool() as pool:
             break
         old_tau = tau
 
-sampler.get_autocorr_time() #insert tau here if note autocorrelated (e.g. during testing)
+sampler.get_autocorr_time()  # insert tau here if not autocorrelated
 burnin = int(2 * np.max(tau))
 thin = int(0.5 * np.min(tau))
 samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
@@ -169,24 +168,25 @@ print("flat log prior shape: {0}".format(np.shape(log_prior_samples)))
 
 # let's plot the results
 all_samples = np.concatenate((
-    samples, log_prob_samples[:, None]#, log_prior_samples[:, None]
+    samples, log_prob_samples[:, None]  # , log_prior_samples[:, None]
 ), axis=1)
 
-fig = corner.corner(samples, labels=["$aop$","$loan$","$inc$","$a$", "$e$"],
+fig = corner.corner(samples, labels=["$aop$", "$loan$", "$inc$", "$a$", "$e$"],
                     range=prange)
-fig.set_size_inches(10,10)
-plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),bbox_inches='tight')
+fig.set_size_inches(10, 10)
+plt.savefig(outpath + stamp + 'results_{0}.pdf'.format(nwalkers),
+            bbox_inches='tight')
 plt.show()
 
 aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-            zip(*np.percentile(samples, [16, 50, 84],
-            axis=0)))
-aop=aop[0]
-loan=loan[0]
-inc=inc[0]
-a=a[0]
-e=e[0]
-pbest=np.array([aop, loan, inc, a, e])
+                           zip(*np.percentile(samples, [16, 50, 84],
+                                              axis=0)))
+aop = aop[0]
+loan = loan[0]
+inc = inc[0]
+a = a[0]
+e = e[0]
+pbest = np.array([aop, loan, inc, a, e])
 
 print(pbest)
 
