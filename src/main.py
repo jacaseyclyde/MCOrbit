@@ -32,6 +32,8 @@ import emcee
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
+from astropy.io import fits
+
 # Ignores stuff
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 
@@ -40,7 +42,7 @@ np.set_printoptions(precision=5, threshold=np.inf)
 datafile = '../dat/CLF-Sim.csv'
 outpath = '../out/'
 
-stamp = '{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
+stamp = ''  #'{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
 
 
 # =============================================================================
@@ -58,9 +60,18 @@ def corner_plot(walkers, prange, filename):
     plt.show()
 
 
+def orbital_fitting(data, priors):
+    ndim = 0
+    nwalkers = 10
+    n_max = 50
+
+
 def main():
     # create output folder
-    os.makedirs(outpath + stamp)
+    try:
+        os.makedirs(outpath + stamp)
+    except FileExistsError:
+        pass
 
     # load data
     my_data = np.genfromtxt(datafile, delimiter=',')
@@ -77,8 +88,6 @@ def main():
 
     # Now, let's setup some parameters that define the MCMC
     ndim = 5
-    nwalkers = 10
-    n_max = 50
 
     priors = np.array([[0., 0., 0., .1, .5], [180., 180., 180., 2, 1.]])
     prange = np.ndarray.tolist(priors.T)
@@ -102,6 +111,8 @@ def main():
 
     m = model.Model(data)
 
+    converged = False
+    tau = [0., 0., 0., 0., 0.]
     with Pool() as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                         backend=backend)
@@ -121,8 +132,9 @@ def main():
                 break
             old_tau = tau
 
-    #if converged:
-    tau = sampler.get_autocorr_time()  # insert tau here if not autocorrelated
+    if converged:
+        tau = sampler.get_autocorr_time()
+
     print(tau)
 
     burnin = int(2 * np.max(tau))
