@@ -62,7 +62,7 @@ def corner_plot(walkers, prange, filename):
     plt.show()
 
 
-def orbital_fitting(data, priors, nwalkers=10, nmax=50, reset=True):
+def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
     ndim = priors.shape[0]
 
     # Initialize the chain, which is uniformly distributed in parameter space
@@ -126,8 +126,15 @@ def orbital_fitting(data, priors, nwalkers=10, nmax=50, reset=True):
     print("flat log prior shape: {0}".format(np.shape(log_prior_samples)))
 
     # let's plot the results
-    all_samples = np.concatenate((samples, log_prob_samples[:, None],
-                                  log_prior_samples[:, None]), axis=1)
+    # using a try catch because as of testing, log_prior_samples is a NoneType
+    # object, and I'm not sure why
+    try:
+        all_samples = np.concatenate((samples, log_prob_samples[:, None],
+                                      log_prior_samples[:, None]), axis=1)
+    except TypeError as e:
+        print(e)
+        all_samples = np.concatenate((samples, log_prob_samples[:, None]),
+                                      axis=1)
 
     return samples, pos_priors, all_samples
 
@@ -153,15 +160,18 @@ def main():
     data = (np.array([X, Y, V]).T)
 
     # set up priors
-    priors = np.array([[55., 65.], [130., 140.], [295., 305.], [.1, 2.], [.5, 1.]])
+    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
+                       [.45, .55], [200., 300.]])
 
-    samples, pos_priors, all_samples = orbital_fitting(data, priors)
+    samples, pos_priors, all_samples = orbital_fitting(data, priors,
+                                                       nwalkers=10, nmax=50,
+                                                       reset=True)
 
     # Visualize the fit
     print('plotting priors')
     corner_plot(pos_priors, priors, 'priors.pdf')
     print('plotting results')
-    corner_plot(all_samples, priors, 'results.pdf')
+    corner_plot(samples, priors, 'results.pdf')
 
     # analyze the walker data
     aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),

@@ -97,7 +97,7 @@ def rot_mat(aop, loan, inc):
 
 def orbit(x0, v0, tstep, ttot):
     '''
-    Takes in an initial position and velocity vector and generates an
+    Takes in an initial periapsis position and velocity and generates an
     integrated orbit around SgrA*. Returns 2 arrays of position and veolocity
     vectors.
 
@@ -106,6 +106,9 @@ def orbit(x0, v0, tstep, ttot):
     npoints = int(ttot / tstep)
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
+    
+    x0 = np.array([x0, 0., 0.])
+    v0 = np.array([0., v0, 0.])
 
     pos[0] = x0  # [pc]
     vel[0] = v0 * secYr / kmPc  # [pc/yr]
