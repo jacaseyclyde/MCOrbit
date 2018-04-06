@@ -23,20 +23,20 @@ import os
 # import datetime
 import warnings
 
-import numpy as np
-
-import matplotlib.pyplot as plt
-import corner
-
-import emcee
-from emcee.autocorr import AutocorrError
-
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
+import numpy as np
+
 import astropy.units as u
-from astropy.io import fits
 from spectral_cube import SpectralCube
+
+import matplotlib.pyplot as plt
+import corner
+import aplpy
+
+import emcee
+from emcee.autocorr import AutocorrError
 
 # Ignores stuff
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
@@ -62,10 +62,27 @@ def import_data(cubefile=None, maskfile=None):
         mask = (mask_cube == u.Quantity(1)) & (HNC_cube > 0.1 * u.Jy / u.beam)
         masked_HNC = HNC_cube.with_mask(mask)
 
-    HNC_v_cube = masked_HNC.with_spectral_unit(u.km / u.s,
-                                               velocity_convention='radio')
+        return masked_HNC.with_spectral_unit(u.km / u.s,
+                                             velocity_convention='radio')
+    else:
+        mask = HNC_cube > 0.1 * u.Jy / u.beam
+        masked_HNC = HNC_cube.with_mask(mask)
 
-    return HNC_v_cube
+        return masked_HNC.with_spectral_unit(u.km / u.s,
+                                             velocity_convention='radio')
+
+def plot_moments(cube, prefix):
+    m0 = cube.moment0()
+
+    f = aplpy.FITSFigure(m0.hdu)
+    f.show_colorscale()
+    f.save(outpath + '{0}_moment_0.png'.format(prefix))
+
+    m1 = cube.moment1()
+
+    f = aplpy.FITSFigure(m1.hdu)
+    f.show_colorscale()
+    f.save(outpath + '{0}_moment_1.png'.format(prefix))
 
 
 def corner_plot(walkers, prange, filename):
@@ -166,6 +183,10 @@ def main():
     HNC3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
     masked_HNC3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
+
+    # plot the first 2 moments of each cube
+    plot_moments(HNC3_2_cube, 'HNC3_2')
+    plot_moments(masked_HNC3_2_cube, 'HNC3_2_masked')
 
     X = my_data[:, 0]
     Y = my_data[:, 1]
