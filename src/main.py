@@ -55,11 +55,12 @@ stamp = ''  # '{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
 # =============================================================================
 # =============================================================================
 def import_data(cubefile=None, maskfile=None):
-    HNC_cube = SpectralCube.read('../dat/HNC3_2.fits')
-    mask_cube = SpectralCube.read('../dat/HNC3_2.mask.fits')
+    HNC_cube = SpectralCube.read('../dat/{0}'.format(cubefile))
+    if maskfile is not None:
+        mask_cube = SpectralCube.read('../dat/{0}'.format(maskfile))
 
-    mask = mask_cube == u.Quantity(1)
-    masked_HNC = HNC_cube.with_mask(mask)
+        mask = (mask_cube == u.Quantity(1)) & (HNC_cube > 0.1 * u.Jy / u.beam)
+        masked_HNC = HNC_cube.with_mask(mask)
 
     HNC_v_cube = masked_HNC.with_spectral_unit(u.km / u.s,
                                                velocity_convention='radio')
@@ -162,7 +163,9 @@ def main():
         pass
 
     # load data
-    # my_data = np.genfromtxt(datafile, delimiter=',')
+    HNC3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
+    masked_HNC3_2_cube = import_data(cubefile='HNC3_2.fits',
+                                     maskfile='HNC3_2.mask.fits')
 
     X = my_data[:, 0]
     Y = my_data[:, 1]
