@@ -20,7 +20,7 @@ import orbits
 import model
 
 import os
-import datetime
+# import datetime
 import warnings
 
 import numpy as np
@@ -34,7 +34,9 @@ from emcee.autocorr import AutocorrError
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
+import astropy.units as u
 from astropy.io import fits
+from spectral_cube import SpectralCube
 
 # Ignores stuff
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
@@ -44,7 +46,7 @@ np.set_printoptions(precision=5, threshold=np.inf)
 datafile = '../dat/CLF-Sim.csv'
 outpath = '../out/'
 
-stamp = ''  #'{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
+stamp = ''  # '{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
 
 
 # =============================================================================
@@ -52,6 +54,19 @@ stamp = ''  #'{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
 # # Functions
 # =============================================================================
 # =============================================================================
+def import_data(cubefile=None, maskfile=None):
+    HNC_cube = SpectralCube.read('../dat/HNC3_2.fits')
+    mask_cube = SpectralCube.read('../dat/HNC3_2.mask.fits')
+
+    mask = mask_cube == u.Quantity(1)
+    masked_HNC = HNC_cube.with_mask(mask)
+
+    HNC_v_cube = masked_HNC.with_spectral_unit(u.km / u.s,
+                                               velocity_convention='radio')
+
+    return HNC_v_cube
+
+
 def corner_plot(walkers, prange, filename):
     fig = corner.corner(walkers, labels=["$aop$", "$loan$", "$inc$", "$a$",
                                          "$e$"],
@@ -134,7 +149,7 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
     except TypeError as e:
         print(e)
         all_samples = np.concatenate((samples, log_prob_samples[:, None]),
-                                      axis=1)
+                                     axis=1)
 
     return samples, pos_priors, all_samples
 
@@ -147,7 +162,7 @@ def main():
         pass
 
     # load data
-    my_data = np.genfromtxt(datafile, delimiter=',')
+    # my_data = np.genfromtxt(datafile, delimiter=',')
 
     X = my_data[:, 0]
     Y = my_data[:, 1]
@@ -164,7 +179,7 @@ def main():
                        [.45, .55], [200., 300.]])
 
     samples, pos_priors, all_samples = orbital_fitting(data, priors,
-                                                       nwalkers=10, nmax=50,
+                                                       nwalkers=100, nmax=50,
                                                        reset=True)
 
     # Visualize the fit
@@ -194,5 +209,5 @@ def main():
     return samples
 
 
-if __name__ == '__main__':
-    samples = main()
+# if __name__ == '__main__':
+    # samples = main()
