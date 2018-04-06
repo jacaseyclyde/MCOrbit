@@ -72,16 +72,19 @@ def import_data(cubefile=None, maskfile=None):
                                              velocity_convention='radio')
 
 def plot_moments(cube, prefix):
-    m0 = cube.moment0()
+    m0 = cube.moment0().hdu
+    m1 = cube.moment1().hdu
 
-    f = aplpy.FITSFigure(m0.hdu)
+    f = aplpy.FITSFigure(m0)
     f.show_colorscale()
+    f.add_colorbar()
+    f.colorbar.set_axis_label_text('Flux (Jy/beam)')
     f.save(outpath + '{0}_moment_0.png'.format(prefix))
 
-    m1 = cube.moment1()
-
-    f = aplpy.FITSFigure(m1.hdu)
+    f = aplpy.FITSFigure(m1)
     f.show_colorscale()
+    f.add_colorbar()
+    f.colorbar.set_axis_label_text('$v_r (km/s)$')
     f.save(outpath + '{0}_moment_1.png'.format(prefix))
 
 
