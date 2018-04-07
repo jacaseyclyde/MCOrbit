@@ -20,7 +20,7 @@ import orbits
 import model
 
 import os
-# import datetime
+import math
 import warnings
 
 from multiprocessing import Pool
@@ -29,7 +29,7 @@ from multiprocessing import cpu_count
 import numpy as np
 
 import astropy.units as u
-from spectral_cube import SpectralCube
+from spectral_cube import SpectralCube, LazyMask
 
 import matplotlib.pyplot as plt
 import corner
@@ -44,9 +44,8 @@ warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 np.set_printoptions(precision=5, threshold=np.inf)
 
 datafile = '../dat/CLF-Sim.csv'
-outpath = '../out/'
-
-stamp = ''  # '{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
+stamp = ''
+outpath = '../out/' + stamp
 
 
 # =============================================================================
@@ -54,22 +53,26 @@ stamp = ''  # '{:%Y%m%d%H%M%S}/'.format(datetime.datetime.now())
 # # Functions
 # =============================================================================
 # =============================================================================
+def notnan(x):
+    return ~np.isnan(x)
+
+
 def import_data(cubefile=None, maskfile=None):
     HNC_cube = SpectralCube.read('../dat/{0}'.format(cubefile))
+
+    buffer_mask = LazyMask(notnan, cube=HNC_cube)
     if maskfile is not None:
         mask_cube = SpectralCube.read('../dat/{0}'.format(maskfile))
-
         mask = (mask_cube == u.Quantity(1)) & (HNC_cube > 0.1 * u.Jy / u.beam)
-        masked_HNC = HNC_cube.with_mask(mask)
 
-        return masked_HNC.with_spectral_unit(u.km / u.s,
-                                             velocity_convention='radio')
     else:
         mask = HNC_cube > 0.1 * u.Jy / u.beam
-        masked_HNC = HNC_cube.with_mask(mask)
 
-        return masked_HNC.with_spectral_unit(u.km / u.s,
-                                             velocity_convention='radio')
+    HNC_cube = HNC_cube.with_mask(mask)
+
+    HNC_cube = HNC_cube.subcube_from_mask(buffer_mask)
+    return HNC_cube.with_spectral_unit(u.km / u.s,
+                                         velocity_convention='radio')
 
 def plot_moments(cube, prefix):
     m0 = cube.moment0().hdu
