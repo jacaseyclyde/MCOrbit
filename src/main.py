@@ -29,6 +29,8 @@ import numpy as np
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.coordinates import Galactocentric
+
 from spectral_cube import SpectralCube, LazyMask
 
 import matplotlib.pyplot as plt
@@ -79,10 +81,13 @@ def import_data(cubefile=None, maskfile=None):
 
 
 def convert_points(cube):
+    # import the coordinate for Sgr A* in FK5 (matching our data)
+    galcen = SkyCoord(Galactocentric.galcen_coord).fk5
+
+    # get the moment 1 map and positions, then convert to an array of ppv data
     m1 = cube.moment1()
     dd, rr = m1.spatial_coordinate_map
-
-    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1)
+    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
     c = c.ravel()
 
 
@@ -225,7 +230,7 @@ def main():
 
     data = (np.array([X, Y, V]).T)
 
-    # set up priors
+    # set up priors and do MCMC
     priors = np.array([[55., 65.], [130., 140.], [295., 305.],
                        [.45, .55], [200., 300.]])
 
@@ -250,8 +255,8 @@ def main():
     e = e[0]
     pbest = np.array([aop, loan, inc, a, e])
 
+    # print the best parameters found and plot the fit
     print(pbest)
-
     orbits.plot_func(pbest)
 
     # bit of cleanup
