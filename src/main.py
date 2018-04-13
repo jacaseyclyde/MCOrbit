@@ -20,7 +20,6 @@ import orbits
 import model
 
 import os
-import math
 import warnings
 
 from multiprocessing import Pool
@@ -29,6 +28,7 @@ from multiprocessing import cpu_count
 import numpy as np
 
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from spectral_cube import SpectralCube, LazyMask
 
 import matplotlib.pyplot as plt
@@ -60,7 +60,10 @@ def notnan(x):
 def import_data(cubefile=None, maskfile=None):
     HNC_cube = SpectralCube.read('../dat/{0}'.format(cubefile))
 
+    # create mask to remove the NaN buffer around the image file later
     buffer_mask = LazyMask(notnan, cube=HNC_cube)
+
+    # mask out contents of maskfile as well as low intensity noise
     if maskfile is not None:
         mask_cube = SpectralCube.read('../dat/{0}'.format(maskfile))
         mask = (mask_cube == u.Quantity(1)) & (HNC_cube > 0.1 * u.Jy / u.beam)
@@ -72,23 +75,37 @@ def import_data(cubefile=None, maskfile=None):
 
     HNC_cube = HNC_cube.subcube_from_mask(buffer_mask)
     return HNC_cube.with_spectral_unit(u.km / u.s,
-                                         velocity_convention='radio')
+                                       velocity_convention='radio')
 
-def plot_moments(cube, prefix):
-    m0 = cube.moment0().hdu
-    m1 = cube.moment1().hdu
 
-    f = aplpy.FITSFigure(m0)
+def convert_points(cube):
+    m1 = cube.moment1()
+    dd, rr = m1.spatial_coordinate_map
+
+    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1)
+    c = c.ravel()
+
+
+def plot_moment(cube, prefix, moment):
+    # calculate moments
+    m = cube.moment(order=moment).hdu  # integrated intensity
+
+    z_unit = ''
+    if moment == 0:
+        z_unit = 'Flux (Jy/beam)'
+    elif moment == 1:
+        z_unit = '$v_r (km/s)$'
+    elif moment == 2:
+        z_unit = '$v_r (km^{2}/s^{2})$'
+    else:
+        print('Please choose from moment 0, 1, or 2')
+        return
+
+    f = aplpy.FITSFigure(m)
     f.show_colorscale()
     f.add_colorbar()
-    f.colorbar.set_axis_label_text('Flux (Jy/beam)')
-    f.save(outpath + '{0}_moment_0.png'.format(prefix))
-
-    f = aplpy.FITSFigure(m1)
-    f.show_colorscale()
-    f.add_colorbar()
-    f.colorbar.set_axis_label_text('$v_r (km/s)$')
-    f.save(outpath + '{0}_moment_1.png'.format(prefix))
+    f.colorbar.set_axis_label_text(z_unit)
+    f.save(outpath + '{0}_moment_{1}.png'.format(prefix, moment))
 
 
 def corner_plot(walkers, prange, filename):
@@ -190,9 +207,13 @@ def main():
     masked_HNC3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
-    # plot the first 2 moments of each cube
-    plot_moments(HNC3_2_cube, 'HNC3_2')
-    plot_moments(masked_HNC3_2_cube, 'HNC3_2_masked')
+    # plot the first 3 moments of each cube
+    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
+    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
+    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
+    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
+    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
+    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
 
     X = my_data[:, 0]
     Y = my_data[:, 1]
