@@ -29,7 +29,6 @@ import numpy as np
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-from astropy.coordinates import Galactocentric
 
 from spectral_cube import SpectralCube, LazyMask
 
@@ -80,7 +79,7 @@ def import_data(cubefile=None, maskfile=None):
                                        velocity_convention='radio')
 
 
-def convert_points(cube):
+def ppv_pts(cube):
     # get the moment 1 map and positions, then convert to an array of ppv data
     m1 = cube.moment1()
     dd, rr = m1.spatial_coordinate_map
@@ -223,15 +222,7 @@ def main():
     plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
     plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
 
-    X = my_data[:, 0]
-    Y = my_data[:, 1]
-    V = my_data[:, 2]
-    Xerr = my_data[:, 3]
-    Yerr = my_data[:, 4]
-    Verr = my_data[:, 5]
-    Verr[Verr == 0] = 4e-2
-
-    data = (np.array([X, Y, V]).T)
+    data = ppv_pts(masked_HNC3_2_cube)
 
     # set up priors and do MCMC
     priors = np.array([[55., 65.], [130., 140.], [295., 305.],
