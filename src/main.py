@@ -81,14 +81,17 @@ def import_data(cubefile=None, maskfile=None):
 
 
 def convert_points(cube):
-    # import the coordinate for Sgr A* in FK5 (matching our data)
-    galcen = SkyCoord(Galactocentric.galcen_coord).fk5
-
     # get the moment 1 map and positions, then convert to an array of ppv data
     m1 = cube.moment1()
     dd, rr = m1.spatial_coordinate_map
     c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
     c = c.ravel()
+
+    # convert to numpy array and remove nan velocities
+    data_pts = np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
+    data_pts = data_pts[notnan(data_pts[:, 2])]
+
+    return data_pts
 
 
 def plot_moment(cube, prefix, moment):

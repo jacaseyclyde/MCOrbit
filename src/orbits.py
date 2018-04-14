@@ -15,6 +15,9 @@ Created on Fri Feb  9 16:08:27 2018
 import numpy as np
 import matplotlib.pyplot as plt
 
+import astropy.units as u
+from astropy.coordinates import Galactocentric, FK5
+
 np.set_printoptions(precision=5, threshold=np.inf)
 
 outpath = '../out/'
@@ -106,12 +109,12 @@ def orbit(x0, v0, tstep, ttot):
     npoints = int(ttot / tstep)
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
-    
-    x0 = np.array([x0, 0., 0.])
-    v0 = np.array([0., v0, 0.])
 
-    pos[0] = x0  # [pc]
-    vel[0] = v0 * secYr / kmPc  # [pc/yr]
+    x0 = np.array([x0, 0., 0.]) * u.pc
+    v0 = np.array([0., v0, 0.]) * u.km / u.s
+
+    pos[0] = x0.value  # [pc]
+    vel[0] = v0.to(u.pc / u.yr).value  # [pc/yr]
 
     posnorm = np.linalg.norm(pos[0])  # [pc]
     a_old = - G * mass_func(posnorm) / posnorm**2  # [pc/yr^2]
@@ -128,7 +131,7 @@ def orbit(x0, v0, tstep, ttot):
 
         a_old = a_new
 
-    return pos, (vel / secYr * kmPc)  # [pc], [km/s]
+    return pos, (vel * u.pc / u.yr).to(u.km / u.s).value  # [pc], [km/s]
 
 
 def sky(p):
@@ -145,23 +148,36 @@ def sky(p):
     inc = inc * np.pi / 180.
 
     rot = rot_mat(aop, loan, inc)
+
     orb_r, orb_v = orbit(x0, v0, tstep, ttot)
 
-    # Transform from Orbit plane to Sky plane
+    # Rotate reference frame
     # We can use the transpose of the rotation matrix instead of the inverse
-    # because it's Hermition
+    # because it's Hermitian
     sky_R = np.matmul(rot.T, orb_r.T)
     sky_V = np.matmul(rot.T, orb_v.T)
-    los_V = sky_V[-1]
 
-    model = np.array([sky_R[0], sky_R[1], los_V])
+    # take rotated reference frame to be galactocentric coordinates
+    # then transform to FK5 (matching our data)
+    c = Galactocentric(x=sky_R[0] * u.pc,
+                       y=sky_R[1] * u.pc,
+                       z=sky_R[2] * u.pc,
+                       v_x=sky_V[0] * u.km / u.s,
+                       v_y=sky_V[1] * u.km / u.s,
+                       v_z=sky_V[2] * u.km / u.s,
+                       galcen_distance=8. * u.kpc).transform_to(FK5)
 
-    return model.T  # return transpose to get individual ellipse points
+    return c
+
+
+def model(c):
+    # wrapper function to convert the coordinates to a numpy array of datapts
+    return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
 
 
 def plot_func(p):
     orb_r, orb_v = orbit(p[3], p[4], tstep, ttot)
-    sky_xyv = sky(p)
+    sky_xyv = model(sky(p))
 
     plt.figure(1)
     plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')
