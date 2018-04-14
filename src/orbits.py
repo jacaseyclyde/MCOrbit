@@ -170,8 +170,9 @@ def sky(p):
     return c
 
 
-def model(c):
+def model(p):
     # wrapper function to convert the coordinates to a numpy array of datapts
+    c = sky(p)
     return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
 
 

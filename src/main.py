@@ -44,7 +44,6 @@ warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
-datafile = '../dat/CLF-Sim.csv'
 stamp = ''
 outpath = '../out/' + stamp
 
@@ -175,8 +174,8 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
 
     print(tau)
 
-    burnin = int(2 * np.max(tau))
-    thin = int(0.5 * np.min(tau))
+    burnin = int(2 * np.nanmax(tau))
+    thin = int(0.5 * np.nanmin(tau))
     samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
     log_prob_samples = sampler.get_log_prob(discard=burnin, flat=True,
                                             thin=thin)
@@ -251,7 +250,7 @@ def main():
 
     # print the best parameters found and plot the fit
     print(pbest)
-    orbits.plot_func(pbest)
+    # orbits.plot_func(pbest)
 
     # bit of cleanup
     if not os.listdir(outpath):
@@ -259,5 +258,5 @@ def main():
     return samples
 
 
-# if __name__ == '__main__':
-    # samples = main()
+if __name__ == '__main__':
+    samples = main()
