@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import astropy.units as u
-from astropy.coordinates import Galactocentric, FK5
+from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -41,6 +41,7 @@ mKm = 1.e+3  # [m/km]
 # =============================================================================
 # Constants
 # =============================================================================
+gc = ICRS(ra=Angle('17h45m40.0409s'), dec=Angle('-29:0:28.118 degrees')) # galactic center
 G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2  # [pc^3 Msun^-1 yr^-2]
 
 # =============================================================================
@@ -54,7 +55,7 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # Other
 # =============================================================================
 tstep = 100
-ttot = 5000
+ttot = 50000
 
 
 # =============================================================================
@@ -165,7 +166,8 @@ def sky(p):
                        v_x=sky_V[0] * u.km / u.s,
                        v_y=sky_V[1] * u.km / u.s,
                        v_z=sky_V[2] * u.km / u.s,
-                       galcen_distance=8. * u.kpc).transform_to(FK5)
+                       galcen_distance=8. * u.kpc,
+                       galcen_coord=gc).transform_to(FK5)
 
     return c
 
@@ -178,7 +180,7 @@ def model(p):
 
 def plot_func(p):
     orb_r, orb_v = orbit(p[3], p[4], tstep, ttot)
-    sky_xyv = model(sky(p))
+    sky_xyv = model(p)
 
     plt.figure(1)
     plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')

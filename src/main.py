@@ -28,7 +28,7 @@ from multiprocessing import cpu_count
 import numpy as np
 
 import astropy.units as u
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, Galactocentric, FK5, ICRS, Angle
 
 from spectral_cube import SpectralCube, LazyMask
 
@@ -57,6 +57,9 @@ def notnan(x):
     return ~np.isnan(x)
 
 
+# =============================================================================
+# Data functions
+# =============================================================================
 def import_data(cubefile=None, maskfile=None):
     HNC_cube = SpectralCube.read('../dat/{0}'.format(cubefile))
 
@@ -92,9 +95,11 @@ def ppv_pts(cube):
     return data_pts
 
 
-def plot_moment(cube, prefix, moment):
-    # calculate moments
-    m = cube.moment(order=moment).hdu  # integrated intensity
+# =============================================================================
+# Plot functions
+# =============================================================================
+def plot_moment(m, prefix, moment, p=None):
+    m = m.hdu
 
     z_unit = ''
     if moment == 0:
@@ -107,11 +112,48 @@ def plot_moment(cube, prefix, moment):
         print('Please choose from moment 0, 1, or 2')
         return
 
-    f = aplpy.FITSFigure(m)
+    #fig = plt.figure()
+
+    # plot data
+    f = aplpy.FITSFigure(m,  figsize=(15, 15))
+    f.set_xaxis_coord_type('longitude')
+    f.set_yaxis_coord_type('latitude')
+
+    # add Sgr A*
+    gc = ICRS(ra=Angle('17h45m40.0409s'),
+              dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
+    ra = gc.ra.value
+    dec = gc.dec.value
+    f.show_markers(ra, dec, layer='sgra', label='Sgr A*',
+                   edgecolor='black', facecolor='black', marker='o', s=10,)
+
+    if p is not None:
+        # plot the orbit of the given parameters
+        c = orbits.sky(p)
+        ra = c.ra.value
+        dec = c.dec.value
+        ra, dec = f.world2pixel(ra, dec)
+        orbit = np.array([ra, dec]).T
+        plt.plot(ra, dec, 'k--', label='Gas core')
+        filename = '{0}_moment_{1}_fit.pdf'.format(prefix, moment)
+    else:
+        filename = '{0}_moment_{1}.pdf'.format(prefix, moment)
+
+    plt.legend()
+
+    # add meta information
+    f.ticks.show()
+    f.add_beam(linestyle='solid', facecolor='white',
+               edgecolor='black', linewidth=1)
+    f.add_scalebar(((.5 * u.pc) / (8. * u.kpc)) * u.rad)
+    f.scalebar.set_label('0.5 pc')
+
     f.show_colorscale()
     f.add_colorbar()
     f.colorbar.set_axis_label_text(z_unit)
-    f.save(outpath + '{0}_moment_{1}.png'.format(prefix, moment))
+
+    f.save(outpath + filename)
+    plt.savefig(outpath + 'plt_' + filename, bbox_inches='tight')
 
 
 def corner_plot(walkers, prange, filename):
@@ -214,49 +256,62 @@ def main():
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
-    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
-    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
-    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
-    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
-    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
+    m0 = HNC3_2_cube.moment0()
+    m1 = HNC3_2_cube.moment1()
+    m2 = HNC3_2_cube.moment2()
+#    plot_moment(m0, 'HNC3_2', moment=0)
+#    plot_moment(m1, 'HNC3_2', moment=1)
+#    plot_moment(m2, 'HNC3_2', moment=2)
 
-    data = ppv_pts(masked_HNC3_2_cube)
+    m0 = masked_HNC3_2_cube.moment0()
+    m1 = masked_HNC3_2_cube.moment1()
+    m2 = masked_HNC3_2_cube.moment2()
+#    plot_moment(m0, 'HNC3_2_masked', moment=0)
+#    plot_moment(m1, 'HNC3_2_masked', moment=1)
+#    plot_moment(m2, 'HNC3_2_masked', moment=2)
 
-    # set up priors and do MCMC
-    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
-                       [.45, .55], [200., 300.]])
-
-    samples, pos_priors, all_samples = orbital_fitting(data, priors,
-                                                       nwalkers=100, nmax=50,
-                                                       reset=True)
-
-    # Visualize the fit
-    print('plotting priors')
-    corner_plot(pos_priors, priors, 'priors.pdf')
-    print('plotting results')
-    corner_plot(samples, priors, 'results.pdf')
-
-    # analyze the walker data
-    aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                               zip(*np.percentile(samples, [16, 50, 84],
-                                                  axis=0)))
-    aop = aop[0]
-    loan = loan[0]
-    inc = inc[0]
-    a = a[0]
-    e = e[0]
-    pbest = np.array([aop, loan, inc, a, e])
-
-    # print the best parameters found and plot the fit
-    print(pbest)
-    # orbits.plot_func(pbest)
+#    data = ppv_pts(masked_HNC3_2_cube)
+#
+#    # set up priors and do MCMC
+#    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
+#                       [.45, .55], [200., 300.]])
+#
+#    samples, pos_priors, all_samples = orbital_fitting(data, priors,
+#                                                       nwalkers=100, nmax=50,
+#                                                       reset=True)
+#
+#    # Visualize the fit
+#    print('plotting priors')
+#    corner_plot(pos_priors, priors, 'priors.pdf')
+#    print('plotting results')
+#    corner_plot(samples, priors, 'results.pdf')
+#
+#    # analyze the walker data
+#    aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+#                               zip(*np.percentile(samples, [16, 50, 84],
+#                                                  axis=0)))
+#    aop = aop[0]
+#    loan = loan[0]
+#    inc = inc[0]
+#    a = a[0]
+#    e = e[0]
+#    pbest = np.array([aop, loan, inc, a, e])
+#
+#    # print the best parameters found and plot the fit
+#    print(pbest)
+    p = np.array([20., 20., 20., 2.5, 110.])
+    plot_moment(m1, 'HNC3_2_masked_0', 1, p)
+    p = np.array([10., 20., 20., 2.5, 110.])
+    plot_moment(m1, 'HNC3_2_masked_aop', 1, p)
+    p = np.array([20., 10., 20., 2.5, 110.])
+    plot_moment(m1, 'HNC3_2_masked_loan', 1, p)
+    p = np.array([20., 20., 10., 2.5, 110.])
+    plot_moment(m1, 'HNC3_2_masked_inc', 1, p)
 
     # bit of cleanup
     if not os.listdir(outpath):
         os.rmdir(outpath)
-    return samples
 
 
 if __name__ == '__main__':
-    samples = main()
+    main()
