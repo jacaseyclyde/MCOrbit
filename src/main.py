@@ -31,6 +31,7 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord, Galactocentric, FK5, ICRS, Angle
 
 from spectral_cube import SpectralCube, LazyMask
+from spectral_cube.utils import VarianceWarning
 
 import matplotlib.pyplot as plt
 import corner
@@ -41,6 +42,8 @@ from emcee.autocorr import AutocorrError
 
 # Ignores stuff
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
+warnings.filterwarnings('ignore', 'Cube is a Stokes cube, ')
+warnings.filterwarnings('ignore', category=VarianceWarning)
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -135,6 +138,7 @@ def plot_moment(m, prefix, moment, p=None):
         ra, dec = f.world2pixel(ra, dec)
         orbit = np.array([ra, dec]).T
         plt.plot(ra, dec, 'k--', label='Gas core')
+        plt.plot(ra[0], dec[0], 'r*')
         filename = '{0}_moment_{1}_fit.pdf'.format(prefix, moment)
     else:
         filename = '{0}_moment_{1}.pdf'.format(prefix, moment)
@@ -299,14 +303,14 @@ def main():
 #
 #    # print the best parameters found and plot the fit
 #    print(pbest)
-    p = np.array([20., 20., 20., 2.5, 110.])
+    p = np.array([80., 80., 20., 3., 50.])
     plot_moment(m1, 'HNC3_2_masked_0', 1, p)
-    p = np.array([10., 20., 20., 2.5, 110.])
-    plot_moment(m1, 'HNC3_2_masked_aop', 1, p)
-    p = np.array([20., 10., 20., 2.5, 110.])
-    plot_moment(m1, 'HNC3_2_masked_loan', 1, p)
-    p = np.array([20., 20., 10., 2.5, 110.])
-    plot_moment(m1, 'HNC3_2_masked_inc', 1, p)
+#    p = np.array([45., 90., 17., 1.75, 125.])
+#    plot_moment(m1, 'HNC3_2_masked_aop', 1, p)
+#    p = np.array([0., 90., 0., 2, 110.])
+#    plot_moment(m1, 'HNC3_2_masked_loan', 1, p)
+#    p = np.array([0., 0., 90., 2, 110.])
+#    plot_moment(m1, 'HNC3_2_masked_inc', 1, p)
 
     # bit of cleanup
     if not os.listdir(outpath):
