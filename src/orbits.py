@@ -55,7 +55,7 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # Other
 # =============================================================================
 tstep = 100
-ttot = 100000
+ttot = 4e5
 
 
 # =============================================================================
@@ -180,7 +180,7 @@ def model(p):
 
 def plot_func(p):
     orb_r, orb_v = orbit(p[3], p[4], tstep, ttot)
-    sky_xyv = model(p)
+    sky_xyv = model(p).T
 
     plt.figure(1)
     plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')

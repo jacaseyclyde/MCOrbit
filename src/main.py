@@ -28,7 +28,7 @@ from multiprocessing import cpu_count
 import numpy as np
 
 import astropy.units as u
-from astropy.coordinates import SkyCoord, Galactocentric, FK5, ICRS, Angle
+from astropy.coordinates import SkyCoord, FK5, ICRS, Angle
 
 from spectral_cube import SpectralCube, LazyMask
 from spectral_cube.utils import VarianceWarning
@@ -101,21 +101,114 @@ def ppv_pts(cube):
 # =============================================================================
 # Plot functions
 # =============================================================================
-def plot_moment(m, prefix, moment, p=None):
-    m = m.hdu
+def plot_model(cube, prefix, p):
+    vmin = cube.spectral_axis.min().value
+    vmax = cube.spectral_axis.max()
+    ra_min, ra_max = cube.longitude_extrema.value
+
+    ra_dec_ = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
+    ra_dec = ra_dec_.moment0(axis=0).hdu
+    ra_dec_array = ra_dec_.moment0(axis=0).array
+    ra_v = cube.moment0(axis=1).array
+    dec_v = cube.moment0(axis=2).array
+
+    fig = plt.figure(figsize=(30,30))
+
+    # get the model for the given parameters
+    c = orbits.sky(p)
+    ra = c.ra.value
+    dec = c.dec.value
+    vel = c.radial_velocity.value
+    
+    # plot ra-dec
+    f = aplpy.FITSFigure(ra_dec, figure=fig, subplot=[0.1, 0.1, 0.35, 0.35])
+
+    ra_px, dec_px = f.world2pixel(ra, dec)
+#    model = [np.array([ra, dec])]
+
+    # add Sgr A*
+    gc = ICRS(ra=Angle('17h45m40.0409s'),
+              dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
+    sgr_ra = gc.ra.value
+    sgr_dec = gc.dec.value
+    f.show_markers(sgr_ra, sgr_dec, layer='sgra', label='Sgr A*',
+                   edgecolor='black', facecolor='black', marker='o', s=10)
+#    f.show_lines(model, layer='model', linestyles='dashed', label='Gas core')
+
+    plt.plot(ra_px, dec_px, 'k--',
+             label='Gas core '
+             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
+             .format(p[0], p[1], p[2]))
+    plt.plot(ra_px[0], dec_px[0], 'r*')
+    plt.legend()
+
+    # add meta information
+    f.ticks.show()
+    f.add_scalebar(((.5 * u.pc) / (8. * u.kpc)) * u.rad)
+    f.scalebar.set_label('0.5 pc')
+
+    f.show_colorscale()
+    f.add_colorbar()
+    f.colorbar.set_axis_label_text('Integrated Flux'
+                                   '$(\mathrm{Hz}\,'
+                                   '\mathrm{Jy}/\mathrm{beam})$')
+
+#    f.save(outpath + '{0}_model_ra_dec.png'.format(prefix))
+
+    # plot ra-velocity
+    f = aplpy.FITSFigure(ra_v, figure=fig, subplot=[0.1, 0.5, 0.35, 0.35])
+
+    plt.plot(ra_px, vel - vmin, 'k--',
+             label='Gas core '
+             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f})$'
+             .format(p[0], p[1], p[2]))
+    plt.plot(ra_px[0], vel[0] - vmin, 'r*')
+    plt.legend()
+
+    f.show_colorscale()
+    f.add_colorbar()
+    f.colorbar.set_axis_label_text('Integrated Flux'
+                                   '$(\degree\,'
+                                   '\mathrm{Jy}/\mathrm{beam})$')
+
+#    f.save(outpath + '{0}_model_ra_v.png'.format(prefix))
+
+    # plot velocity-dec
+    f = aplpy.FITSFigure(dec_v.T, figure=fig, subplot=[0.5, 0.1, 0.35, 0.35])
+
+    plt.plot(vel - vmin, dec_px, 'k--',
+             label='Gas core '
+             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f})$'
+             .format(p[0], p[1], p[2]))
+    plt.plot(vel[0] - vmin, dec_px[0], 'r*')
+    plt.legend()
+
+    f.show_colorscale()
+    f.add_colorbar()
+    f.colorbar.set_axis_label_text('Integrated Flux'
+                                   '$(\degree\,'
+                                   '\mathrm{Jy}/\mathrm{beam})$')
+
+    plt.savefig(outpath + '{0}_model_ppv.png'.format(prefix))
+    
+    return ra_px, dec_px, vel
+
+
+def plot_moment(cube, prefix, moment):
+    m = cube.moment(order=moment).hdu
+    filename = '{0}_moment_{1}.png'
 
     z_unit = ''
     if moment == 0:
         z_unit = 'Flux (Jy/beam)'
     elif moment == 1:
-        z_unit = '$v_r (km/s)$'
+        z_unit = '$v_{r} (\mathrm{km}/\mathrm{s})$'
     elif moment == 2:
-        z_unit = '$v_r (km^{2}/s^{2})$'
+        z_unit = '$\sigma_{v_{r}}^{2} (\mathrm{km}^{2}/\mathrm{s}^{2})$'
     else:
+        # TODO: Use a try except instead
         print('Please choose from moment 0, 1, or 2')
         return
-
-    #fig = plt.figure()
 
     # plot data
     f = aplpy.FITSFigure(m,  figsize=(15, 15))
@@ -130,19 +223,6 @@ def plot_moment(m, prefix, moment, p=None):
     f.show_markers(ra, dec, layer='sgra', label='Sgr A*',
                    edgecolor='black', facecolor='black', marker='o', s=10,)
 
-    if p is not None:
-        # plot the orbit of the given parameters
-        c = orbits.sky(p)
-        ra = c.ra.value
-        dec = c.dec.value
-        ra, dec = f.world2pixel(ra, dec)
-        orbit = np.array([ra, dec]).T
-        plt.plot(ra, dec, 'k--', label='Gas core')
-        plt.plot(ra[0], dec[0], 'r*')
-        filename = '{0}_moment_{1}_fit.pdf'.format(prefix, moment)
-    else:
-        filename = '{0}_moment_{1}.pdf'.format(prefix, moment)
-
     plt.legend()
 
     # add meta information
@@ -156,8 +236,7 @@ def plot_moment(m, prefix, moment, p=None):
     f.add_colorbar()
     f.colorbar.set_axis_label_text(z_unit)
 
-    f.save(outpath + filename)
-    plt.savefig(outpath + 'plt_' + filename, bbox_inches='tight')
+    f.save(outpath + filename.format(prefix, moment))
 
 
 def corner_plot(walkers, prange, filename):
@@ -260,19 +339,13 @@ def main():
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-    m0 = HNC3_2_cube.moment0()
-    m1 = HNC3_2_cube.moment1()
-    m2 = HNC3_2_cube.moment2()
-#    plot_moment(m0, 'HNC3_2', moment=0)
-#    plot_moment(m1, 'HNC3_2', moment=1)
-#    plot_moment(m2, 'HNC3_2', moment=2)
+#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
+#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
+#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
 
-    m0 = masked_HNC3_2_cube.moment0()
-    m1 = masked_HNC3_2_cube.moment1()
-    m2 = masked_HNC3_2_cube.moment2()
-#    plot_moment(m0, 'HNC3_2_masked', moment=0)
-#    plot_moment(m1, 'HNC3_2_masked', moment=1)
-#    plot_moment(m2, 'HNC3_2_masked', moment=2)
+#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
+#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
+#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
 
 #    data = ppv_pts(masked_HNC3_2_cube)
 #
@@ -303,14 +376,11 @@ def main():
 #
 #    # print the best parameters found and plot the fit
 #    print(pbest)
-    p = np.array([80., 80., 20., 3., 50.])
-    plot_moment(m1, 'HNC3_2_masked_0', 1, p)
-#    p = np.array([45., 90., 17., 1.75, 125.])
-#    plot_moment(m1, 'HNC3_2_masked_aop', 1, p)
-#    p = np.array([0., 90., 0., 2, 110.])
-#    plot_moment(m1, 'HNC3_2_masked_loan', 1, p)
-#    p = np.array([0., 0., 90., 2, 110.])
-#    plot_moment(m1, 'HNC3_2_masked_inc', 1, p)
+    p = np.array([95., 140., 205., 4., 65.])
+#    p = np.array([0., 215., 180., 4., 165.])
+    print(p)
+    ra, dec, vel = plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', p)
+    return HNC3_2_cube, ra, dec, vel
 
     # bit of cleanup
     if not os.listdir(outpath):
@@ -318,4 +388,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    cube, ra, dec, vel = main()
+#    pass
