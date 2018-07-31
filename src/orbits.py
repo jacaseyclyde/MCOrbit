@@ -41,7 +41,8 @@ mKm = 1.e+3  # [m/km]
 # =============================================================================
 # Constants
 # =============================================================================
-gc = ICRS(ra=Angle('17h45m40.0409s'), dec=Angle('-29:0:28.118 degrees')) # galactic center
+gc = ICRS(ra=Angle('17h45m40.0409s'),
+          dec=Angle('-29:0:28.118 degrees'))  # galactic center
 G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2  # [pc^3 Msun^-1 yr^-2]
 
 # =============================================================================
@@ -54,8 +55,8 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # =============================================================================
 # Other
 # =============================================================================
-tstep = 100
-ttot = 4e5
+tstep = 500
+ttot = 1e5
 
 
 # =============================================================================
@@ -99,7 +100,7 @@ def rot_mat(aop, loan, inc):
     return T
 
 
-def orbit(x0, v0, tstep, ttot):
+def orbit(r_per, r_ap, tstep, ttot):
     '''
     Takes in an initial periapsis position and velocity and generates an
     integrated orbit around SgrA*. Returns 2 arrays of position and veolocity
@@ -111,11 +112,13 @@ def orbit(x0, v0, tstep, ttot):
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
 
-    x0 = np.array([x0, 0., 0.]) * u.pc
-    v0 = np.array([0., v0, 0.]) * u.km / u.s
+    x0 = np.array([r_per, 0., 0.]) * u.pc
+    v_per = np.sqrt((2. * G * mass_func(r_per) * r_ap)
+                    / (r_per * (r_per + r_ap)))
+    v0 = np.array([0., v_per, 0.]) * u.pc / u.yr
 
     pos[0] = x0.value  # [pc]
-    vel[0] = v0.to(u.pc / u.yr).value  # [pc/yr]
+    vel[0] = v0.value  # [pc/yr]
 
     posnorm = np.linalg.norm(pos[0])  # [pc]
     a_old = - G * mass_func(posnorm) / posnorm**2  # [pc/yr^2]
@@ -141,7 +144,7 @@ def sky(p):
     the orbit must be elliptical and SgrA* lies at the focus
     """
 
-    (aop, loan, inc, x0, v0) = p
+    (aop, loan, inc, r_per, r_ap) = p
 
     # convert from degrees to radians
     aop = aop * np.pi / 180.
@@ -150,22 +153,22 @@ def sky(p):
 
     rot = rot_mat(aop, loan, inc)
 
-    orb_r, orb_v = orbit(x0, v0, tstep, ttot)
+    orb_r, orb_v = orbit(r_per, r_ap, tstep, ttot)
 
     # Rotate reference frame
     # We can use the transpose of the rotation matrix instead of the inverse
     # because it's Hermitian
-    sky_R = np.matmul(rot.T, orb_r.T)
-    sky_V = np.matmul(rot.T, orb_v.T)
+    rot_R = np.matmul(rot.T, orb_r.T)
+    rot_V = np.matmul(rot.T, orb_v.T)
 
     # take rotated reference frame to be galactocentric coordinates
     # then transform to FK5 (matching our data)
-    c = Galactocentric(x=sky_R[0] * u.pc,
-                       y=sky_R[1] * u.pc,
-                       z=sky_R[2] * u.pc,
-                       v_x=sky_V[0] * u.km / u.s,
-                       v_y=sky_V[1] * u.km / u.s,
-                       v_z=sky_V[2] * u.km / u.s,
+    c = Galactocentric(x=rot_R[0] * u.pc,
+                       y=rot_R[1] * u.pc,
+                       z=rot_R[2] * u.pc,
+                       v_x=rot_V[0] * u.km / u.s,
+                       v_y=rot_V[1] * u.km / u.s,
+                       v_z=rot_V[2] * u.km / u.s,
                        galcen_distance=8. * u.kpc,
                        galcen_coord=gc).transform_to(FK5)
 
@@ -179,18 +182,18 @@ def model(p):
 
 
 def plot_func(p):
-    orb_r, orb_v = orbit(p[3], p[4], tstep, ttot)
-    sky_xyv = model(p).T
+    orb_r, orb_v = orbit(p[-2], p[-1], tstep, ttot)
+    sky_xyv = model(p)
 
     plt.figure(1)
     plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')
-    plt.plot([0], [0], 'g*', label='Sgr A*')
+#    plt.plot([0], [0], 'g*', label='Sgr A*')
 
     plt.grid(True)
     plt.axes().set_aspect('equal', 'datalim')
     plt.title('Sky Plane')  # . p = {}'.format(p))
-    plt.xlabel('Offset (pc)')
-    plt.ylabel('Offset (pc)')
+    plt.xlabel('Offset (rad)')
+    plt.ylabel('Offset (rad)')
     plt.savefig(outpath + 'skyplane.pdf', bbox_inches='tight')
     plt.legend()
     plt.show()
