@@ -21,6 +21,7 @@ import model
 
 import os
 import warnings
+import time
 
 from multiprocessing import Pool
 from multiprocessing import cpu_count
@@ -33,6 +34,7 @@ from astropy.coordinates import SkyCoord, FK5, ICRS, Angle
 from spectral_cube import SpectralCube, LazyMask
 from spectral_cube.utils import VarianceWarning
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import corner
 import aplpy
@@ -49,6 +51,9 @@ np.set_printoptions(precision=5, threshold=np.inf)
 
 stamp = ''
 outpath = '../out/' + stamp
+
+figsize = (10, 10)
+filetype = 'pdf'
 
 
 # =============================================================================
@@ -101,106 +106,222 @@ def ppv_pts(cube):
 # =============================================================================
 # Plot functions
 # =============================================================================
+def _ra_labeler(dec, pos):
+    ang = Angle(dec, unit=u.deg)
+    h = int(ang.hms.h)
+    m = abs(int(ang.hms.m))
+    s = abs(round(ang.hms.s, 2))
+
+    if pos == 0:
+        return "${0}h\,{1}m\,{2}s$".format(h, m, s)
+    else:
+        return "${0}s$".format(s)
+
+
+def _dec_labeler(dec, pos):
+    ang = Angle(dec, unit=u.deg)
+    d = int(ang.dms.d)
+    m = abs(int(ang.dms.m))
+    s = abs(round(ang.dms.s, 2))
+
+    if pos == 0 or (m == 0. and s == 0.):
+        return "${0}^{{\circ}}\,{1}'\,{2}''$".format(d, m, s)
+    elif s == 0.:
+        return "${0}'\,{1}''$".format(m, s)
+    else:
+        return "${0}''$".format(s)
+
+
 def plot_model(cube, prefix, p):
     vmin = cube.spectral_axis.min().value
-    vmax = cube.spectral_axis.max()
+    vmax = cube.spectral_axis.max().value
     ra_min, ra_max = cube.longitude_extrema.value
+    dec_min, dec_max = cube.latitude_extrema.value
 
     ra_dec_ = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
-    ra_dec = ra_dec_.moment0(axis=0).hdu
-    ra_dec_array = ra_dec_.moment0(axis=0).array
+    ra_dec = ra_dec_.moment0(axis=0).array
     ra_v = cube.moment0(axis=1).array
     dec_v = cube.moment0(axis=2).array
 
-    fig = plt.figure(figsize=(30,30))
-
     # get the model for the given parameters
     c = orbits.sky(p)
-    ra = c.ra.value
-    dec = c.dec.value
+    ra = c.ra.to(u.deg).value
+    dec = c.dec.to(u.deg).value
     vel = c.radial_velocity.value
-    
-    # plot ra-dec
-    f = aplpy.FITSFigure(ra_dec, figure=fig, subplot=[0.1, 0.1, 0.35, 0.35])
 
-    ra_px, dec_px = f.world2pixel(ra, dec)
-#    model = [np.array([ra, dec])]
+    # plot ra-dec
+    f0 = plt.figure(figsize=figsize)
+    plt.imshow(ra_dec, origin='lower', cmap='jet', figure=f0,
+               extent=[ra_max, ra_min, dec_min, dec_max])
 
     # add Sgr A*
     gc = ICRS(ra=Angle('17h45m40.0409s'),
               dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
-    sgr_ra = gc.ra.value
-    sgr_dec = gc.dec.value
-    f.show_markers(sgr_ra, sgr_dec, layer='sgra', label='Sgr A*',
-                   edgecolor='black', facecolor='black', marker='o', s=10)
-#    f.show_lines(model, layer='model', linestyles='dashed', label='Gas core')
+    sgr_ra = gc.ra.to(u.deg).value
+    sgr_dec = gc.dec.to(u.deg).value
+    plt.plot(sgr_ra, sgr_dec, label='Sgr A*',
+             c='black', marker='o', ms=5, linestyle='None')
 
-    plt.plot(ra_px, dec_px, 'k--',
+    # Add the model
+    plt.plot(ra, dec, 'k--',
              label='Gas core '
              '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
              .format(p[0], p[1], p[2]))
-    plt.plot(ra_px[0], dec_px[0], 'r*')
-    plt.legend()
+    plt.plot(ra[0], dec[0], 'r*', label='Model Start')
 
     # add meta information
-    f.ticks.show()
-    f.add_scalebar(((.5 * u.pc) / (8. * u.kpc)) * u.rad)
-    f.scalebar.set_label('0.5 pc')
+    plt.legend()
 
-    f.show_colorscale()
-    f.add_colorbar()
-    f.colorbar.set_axis_label_text('Integrated Flux'
-                                   '$(\mathrm{Hz}\,'
-                                   '\mathrm{Jy}/\mathrm{beam})$')
+    scale = (((.5 * u.pc) / (8. * u.kpc)) * u.rad).to(u.deg).value
+    plt.plot((266.40 + scale, 266.40), (-29.024, -29.024), 'k-')
+    plt.text(266.40 + 0.5 * scale, -29.024, '0.5 pc',
+             horizontalalignment='center', verticalalignment='bottom')
 
-#    f.save(outpath + '{0}_model_ra_dec.png'.format(prefix))
+    cbar = plt.colorbar()
+    cbar.set_label('Integrated Flux $(\mathrm{Hz}\,'
+                   '\mathrm{Jy}/\mathrm{beam})$')
+
+    # make nice axes
+    ax = plt.gca()
+
+    plt.xlabel('RA (J2000)')
+
+    ra_locations = [(Angle('17h45m36.00s')
+                    + i * Angle('0h0m2.00s')).to(u.deg).value for i in range(4)]
+    ra_locator = mpl.ticker.FixedLocator(ra_locations)
+    ax.xaxis.set_major_locator(ra_locator)
+
+    ra_labeler = mpl.ticker.FuncFormatter(_ra_labeler)
+    ax.xaxis.set_major_formatter(ra_labeler)
+
+    plt.ylabel('Dec (J2000)')
+
+    dec_locations = [(Angle('-28:59:40.0 degrees')
+                      - i * Angle('0:0:20.0 degrees')).value for i in range(6)]
+    dec_locator = mpl.ticker.FixedLocator(dec_locations)
+    ax.yaxis.set_major_locator(dec_locator)
+
+    dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
+    ax.yaxis.set_major_formatter(dec_labeler)
+
+#    plt.savefig(outpath + '{0}_model_ra_dec.{1}'.format(prefix, filetype))
 
     # plot ra-velocity
-    f = aplpy.FITSFigure(ra_v, figure=fig, subplot=[0.1, 0.5, 0.35, 0.35])
+    f1 = plt.figure(figsize=figsize)
+    plt.imshow(ra_v, origin='lower', cmap='jet', figure=f1,
+               extent=[ra_max, ra_min, vmin, vmax])
+    print(ra_v.shape, ra_dec.shape)
 
-    plt.plot(ra_px, vel - vmin, 'k--',
-             label='Gas core '
-             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f})$'
-             .format(p[0], p[1], p[2]))
-    plt.plot(ra_px[0], vel[0] - vmin, 'r*')
-    plt.legend()
+    # Add the model
+#    plt.plot(ra, vel, 'k--',
+#             label='Gas core '
+#             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
+#             .format(p[0], p[1], p[2]))
+#    plt.plot(ra[0], vel[0], 'r*', label='Model Start')
+#
+#    # add meta information
+#    plt.legend()
+#
+#    scale = (((.5 * u.pc) / (8. * u.kpc)) * u.rad).to(u.deg).value
+#    plt.plot((266.40 + scale, 266.40), (-29.024, -29.024), 'k-')
+#    plt.text(266.40 + 0.5 * scale, -29.024, '0.5 pc',
+#             horizontalalignment='center', verticalalignment='bottom')
+#
+#    cbar = plt.colorbar()
+#    cbar.set_label('Integrated Flux $(\mathrm{Hz}\,'
+#                   '\mathrm{Jy}/\mathrm{beam})$')
+#
+#    # make nice axes
+#    ax = plt.gca()
+#
+#    plt.xlabel('RA (J2000)')
+#
+#    ra_locations = [(Angle('17h45m36.00s')
+#                    + i * Angle('0h0m2.00s')).to(u.deg).value for i in range(4)]
+#    ra_locator = mpl.ticker.FixedLocator(ra_locations)
+#    print(ra_locations)
+#    ax.xaxis.set_major_locator(ra_locator)
+#
+#    ra_labeler = mpl.ticker.FuncFormatter(_ra_labeler)
+#    ax.xaxis.set_major_formatter(ra_labeler)
+#
+#    plt.ylabel('Dec (J2000)')
+#
+#    dec_locations = [(Angle('-28:59:40.0 degrees')
+#                      - i * Angle('0:0:20.0 degrees')).value for i in range(6)]
+#    dec_locator = mpl.ticker.FixedLocator(dec_locations)
+#    ax.yaxis.set_major_locator(dec_locator)
+#
+#    dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
+#    ax.yaxis.set_major_formatter(dec_labeler)
+#########################################################
+#    f = plt.imshow(ra_v, origin='lower', cmap='jet', #figsize=figsize,
+#                   extent=[ra_min, ra_max, vmin, vmax])
+#
+#    plt.plot(ra, vel, 'k--',
+#             label='Gas core '
+#             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
+#             .format(p[0], p[1], p[2]))
+#    plt.plot(ra[0], vel[0], 'r*')
+#    plt.legend()
+#    plt.show()
 
-    f.show_colorscale()
-    f.add_colorbar()
-    f.colorbar.set_axis_label_text('Integrated Flux'
-                                   '$(\degree\,'
-                                   '\mathrm{Jy}/\mathrm{beam})$')
+#    f.ticks.show()
+#    f.set_yaxis_coord_type('scalar')
+#    f.set_xaxis_coord_type('longitude')
+#    f.axis_labels.set_xtext('Right Ascension (J2000)')
+#    f.axis_labels.set_ytext('$v_{r} \mathrm{km} / \mathrm{s}$')
+#    f.axis_labels.show()
+#
+#    f.show_colorscale()
+#    f.add_colorbar()
+#    f.colorbar.set_axis_label_text('Integrated Flux'
+#                                   '$(\degree\,'
+#                                   '\mathrm{Jy}/\mathrm{beam})$')
 
-#    f.save(outpath + '{0}_model_ra_v.png'.format(prefix))
+#    f.save(outpath + '{0}_model_ra_v.{1}'.format(prefix, filetype))
 
     # plot velocity-dec
-    f = aplpy.FITSFigure(dec_v.T, figure=fig, subplot=[0.5, 0.1, 0.35, 0.35])
+#    f = plt.imshow(dec_v, origin='lower', cmap='jet')
+#
+#    plt.plot(dec, vel, 'k--',
+#             label='Gas core '
+#             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f})$'
+#             .format(p[0], p[1], p[2]))
+#    plt.plot(dec[0], vel[0], 'r*')
+#    plt.legend()
+#
+#    f.show_colorscale()
+#    f.add_colorbar()
+#    f.colorbar.set_axis_label_text('Integrated Flux'
+#                                   '$(\degree\,'
+#                                   '\mathrm{Jy}/\mathrm{beam})$')
+#
+#    print(dec)
+#
+#    f.ticks.show()
+#    f.set_yaxis_coord_type('scalar')
+#    f.set_xaxis_coord_type('latitude')
+#    f.axis_labels.set_xtext('Declination (J2000)')
+#    f.axis_labels.set_ytext('$v_{r} \mathrm{km} / \mathrm{s}$')
+#    f.axis_labels.show()
+#
+#    plt.savefig(outpath + '{0}_model_v_dec.{1}'.format(prefix, filetype))
+#    print(ra_dec.shape)
+#    print(ra_v.shape)
+#    print(dec_v.shape)
 
-    plt.plot(vel - vmin, dec_px, 'k--',
-             label='Gas core '
-             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f})$'
-             .format(p[0], p[1], p[2]))
-    plt.plot(vel[0] - vmin, dec_px[0], 'r*')
-    plt.legend()
-
-    f.show_colorscale()
-    f.add_colorbar()
-    f.colorbar.set_axis_label_text('Integrated Flux'
-                                   '$(\degree\,'
-                                   '\mathrm{Jy}/\mathrm{beam})$')
-
-    plt.savefig(outpath + '{0}_model_ppv.png'.format(prefix))
-    
-    return ra_px, dec_px, vel
+#    return ra_px, dec_px, vel
 
 
 def plot_moment(cube, prefix, moment):
     m = cube.moment(order=moment).hdu
-    filename = '{0}_moment_{1}.png'
+    filename = '{0}_moment_{1}.{2}'
 
     z_unit = ''
     if moment == 0:
-        z_unit = 'Flux (Jy/beam)'
+        z_unit = 'Integrated Flux $(\mathrm{Hz}\,\mathrm{Jy}/\mathrm{beam})$'
+        cube = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
     elif moment == 1:
         z_unit = '$v_{r} (\mathrm{km}/\mathrm{s})$'
     elif moment == 2:
@@ -211,7 +332,7 @@ def plot_moment(cube, prefix, moment):
         return
 
     # plot data
-    f = aplpy.FITSFigure(m,  figsize=(15, 15))
+    f = aplpy.FITSFigure(m,  figsize=figsize)
     f.set_xaxis_coord_type('longitude')
     f.set_yaxis_coord_type('latitude')
 
@@ -236,7 +357,7 @@ def plot_moment(cube, prefix, moment):
     f.add_colorbar()
     f.colorbar.set_axis_label_text(z_unit)
 
-    f.save(outpath + filename.format(prefix, moment))
+    f.save(outpath + filename.format(prefix, moment, filetype))
 
 
 def corner_plot(walkers, prange, filename):
@@ -342,7 +463,7 @@ def main():
 #    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
 #    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
 #    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
-
+#
 #    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
 #    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
 #    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
@@ -376,11 +497,14 @@ def main():
 #
 #    # print the best parameters found and plot the fit
 #    print(pbest)
-    p = np.array([95., 140., 205., 4., 65.])
+    p = np.array([90., 140., 210., 1.5, 4.])
 #    p = np.array([0., 215., 180., 4., 165.])
     print(p)
-    ra, dec, vel = plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', p)
-    return HNC3_2_cube, ra, dec, vel
+    t0 = time.time()
+    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', p)
+    t1 = time.time()
+    print(t1 - t0)
+    return HNC3_2_cube
 
     # bit of cleanup
     if not os.listdir(outpath):
@@ -388,5 +512,5 @@ def main():
 
 
 if __name__ == '__main__':
-    cube, ra, dec, vel = main()
+    cube = main()
 #    pass
