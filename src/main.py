@@ -125,11 +125,26 @@ def _dec_labeler(dec, pos):
     s = abs(round(ang.dms.s, 2))
 
     if pos == 0 or (m == 0. and s == 0.):
-        return "${0}^{{\circ}}\,{1}'\,{2}''$".format(d, m, s)
+        return "${0}\degree\,{1}'\,{2}''$".format(d, m, s)
     elif s == 0.:
         return "${0}'\,{1}''$".format(m, s)
     else:
         return "${0}''$".format(s)
+
+
+def _model_plot(img, model, bounds, xflag, yflag):
+    # start the basics of the plot
+    f = plt.figure(figsize=figsize)
+    plt.imshow(model, origin='lower', cmap='jet', figure=f, aspect='auto',
+               extent=bounds)
+    if xflag == 'ra' and yflag == 'dec':
+        # add Sgr A*
+        gc = ICRS(ra=Angle('17h45m40.0409s'),
+                  dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
+        sgr_ra = gc.ra.to(u.deg).value
+        sgr_dec = gc.dec.to(u.deg).value
+        plt.plot(sgr_ra, sgr_dec, label='Sgr A*',
+                 c='black', marker='o', ms=5, linestyle='None')
 
 
 def plot_model(cube, prefix, p):
@@ -138,8 +153,8 @@ def plot_model(cube, prefix, p):
     ra_min, ra_max = cube.longitude_extrema.value
     dec_min, dec_max = cube.latitude_extrema.value
 
-    ra_dec_ = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
-    ra_dec = ra_dec_.moment0(axis=0).array
+    ra_dec = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
+    ra_dec = ra_dec.moment0(axis=0).array
     ra_v = cube.moment0(axis=1).array
     dec_v = cube.moment0(axis=2).array
 
@@ -149,9 +164,9 @@ def plot_model(cube, prefix, p):
     dec = c.dec.to(u.deg).value
     vel = c.radial_velocity.value
 
-    # plot ra-dec
+    # plot dec vs ra
     f0 = plt.figure(figsize=figsize)
-    plt.imshow(ra_dec, origin='lower', cmap='jet', figure=f0,
+    plt.imshow(ra_dec, origin='lower', cmap='jet', figure=f0, aspect='auto',
                extent=[ra_max, ra_min, dec_min, dec_max])
 
     # add Sgr A*
@@ -170,8 +185,6 @@ def plot_model(cube, prefix, p):
     plt.plot(ra[0], dec[0], 'r*', label='Model Start')
 
     # add meta information
-    plt.legend()
-
     scale = (((.5 * u.pc) / (8. * u.kpc)) * u.rad).to(u.deg).value
     plt.plot((266.40 + scale, 266.40), (-29.024, -29.024), 'k-')
     plt.text(266.40 + 0.5 * scale, -29.024, '0.5 pc',
@@ -181,13 +194,16 @@ def plot_model(cube, prefix, p):
     cbar.set_label('Integrated Flux $(\mathrm{Hz}\,'
                    '\mathrm{Jy}/\mathrm{beam})$')
 
+    plt.legend()
+
     # make nice axes
     ax = plt.gca()
 
     plt.xlabel('RA (J2000)')
 
     ra_locations = [(Angle('17h45m36.00s')
-                    + i * Angle('0h0m2.00s')).to(u.deg).value for i in range(4)]
+                    + i * Angle('0h0m2.00s')).to(u.deg).value
+                    for i in range(4)]
     ra_locator = mpl.ticker.FixedLocator(ra_locations)
     ax.xaxis.set_major_locator(ra_locator)
 
@@ -204,83 +220,81 @@ def plot_model(cube, prefix, p):
     dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
     ax.yaxis.set_major_formatter(dec_labeler)
 
-#    plt.savefig(outpath + '{0}_model_ra_dec.{1}'.format(prefix, filetype))
+    plt.savefig(outpath + '{0}_model_ra_dec.{1}'.format(prefix, filetype))
 
-    # plot ra-velocity
+    # plot velocity vs ra
     f1 = plt.figure(figsize=figsize)
-    plt.imshow(ra_v, origin='lower', cmap='jet', figure=f1,
+    plt.imshow(ra_v, origin='lower', cmap='jet', figure=f1, aspect='auto',
                extent=[ra_max, ra_min, vmin, vmax])
-    print(ra_v.shape, ra_dec.shape)
 
     # Add the model
-#    plt.plot(ra, vel, 'k--',
-#             label='Gas core '
-#             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
-#             .format(p[0], p[1], p[2]))
-#    plt.plot(ra[0], vel[0], 'r*', label='Model Start')
-#
-#    # add meta information
-#    plt.legend()
-#
-#    scale = (((.5 * u.pc) / (8. * u.kpc)) * u.rad).to(u.deg).value
-#    plt.plot((266.40 + scale, 266.40), (-29.024, -29.024), 'k-')
-#    plt.text(266.40 + 0.5 * scale, -29.024, '0.5 pc',
-#             horizontalalignment='center', verticalalignment='bottom')
-#
-#    cbar = plt.colorbar()
-#    cbar.set_label('Integrated Flux $(\mathrm{Hz}\,'
-#                   '\mathrm{Jy}/\mathrm{beam})$')
-#
-#    # make nice axes
-#    ax = plt.gca()
-#
-#    plt.xlabel('RA (J2000)')
-#
-#    ra_locations = [(Angle('17h45m36.00s')
-#                    + i * Angle('0h0m2.00s')).to(u.deg).value for i in range(4)]
-#    ra_locator = mpl.ticker.FixedLocator(ra_locations)
-#    print(ra_locations)
-#    ax.xaxis.set_major_locator(ra_locator)
-#
-#    ra_labeler = mpl.ticker.FuncFormatter(_ra_labeler)
-#    ax.xaxis.set_major_formatter(ra_labeler)
-#
-#    plt.ylabel('Dec (J2000)')
-#
-#    dec_locations = [(Angle('-28:59:40.0 degrees')
-#                      - i * Angle('0:0:20.0 degrees')).value for i in range(6)]
-#    dec_locator = mpl.ticker.FixedLocator(dec_locations)
-#    ax.yaxis.set_major_locator(dec_locator)
-#
-#    dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
-#    ax.yaxis.set_major_formatter(dec_labeler)
+    plt.plot(ra, vel, 'k--',
+             label='Gas core '
+             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
+             .format(p[0], p[1], p[2]))
+    plt.plot(ra[0], vel[0], 'r*', label='Model Start')
+
+    # add meta information
+    cbar = plt.colorbar()
+    cbar.set_label('Integrated Flux $(\degree\,\mathrm{Jy}/\mathrm{beam})$')
+
+    plt.legend()
+
+    # make nice axes
+    ax = plt.gca()
+
+    plt.xlabel('RA (J2000)')
+
+    ra_locations = [(Angle('17h45m36.00s')
+                    + i * Angle('0h0m2.00s')).to(u.deg).value
+                    for i in range(4)]
+    ra_locator = mpl.ticker.FixedLocator(ra_locations)
+    print(ra_locations)
+    ax.xaxis.set_major_locator(ra_locator)
+
+    ra_labeler = mpl.ticker.FuncFormatter(_ra_labeler)
+    ax.xaxis.set_major_formatter(ra_labeler)
+
+    plt.ylabel('$v_{r}\,(\mathrm{km} / \mathrm{s})$')
+
+    plt.savefig(outpath + '{0}_model_ra_v.{1}'.format(prefix, filetype))
+
+    # plot dec vs v
+    f2 = plt.figure(figsize=figsize)
+    plt.imshow(dec_v, origin='lower', cmap='jet', figure=f2, aspect='auto',
+               extent=[dec_min, dec_max, vmin, vmax])
+
+    # Add the model
+    plt.plot(dec, vel, 'k--',
+             label='Gas core '
+             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
+             .format(p[0], p[1], p[2]))
+    plt.plot(dec[0], vel[0], 'r*', label='Model Start')
+
+    # add meta information
+    cbar = plt.colorbar()
+    cbar.set_label('Integrated Flux $(\degree\,\mathrm{Jy}/\mathrm{beam})$')
+
+    plt.legend()
+
+    # make nice axes
+    ax = plt.gca()
+
+    plt.xlabel('Dec (J2000)')
+
+    dec_locations = [(Angle('-28:59:40.0 degrees')
+                      - i * Angle('0:0:20.0 degrees')).value for i in range(6)]
+    dec_locator = mpl.ticker.FixedLocator(dec_locations)
+    ax.xaxis.set_major_locator(dec_locator)
+
+    dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
+    ax.xaxis.set_major_formatter(dec_labeler)
+
+    plt.ylabel('$v_{r}\,(\mathrm{km} / \mathrm{s})$')
+
+    plt.savefig(outpath + '{0}_model_dec_v.{1}'.format(prefix, filetype))
+
 #########################################################
-#    f = plt.imshow(ra_v, origin='lower', cmap='jet', #figsize=figsize,
-#                   extent=[ra_min, ra_max, vmin, vmax])
-#
-#    plt.plot(ra, vel, 'k--',
-#             label='Gas core '
-#             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
-#             .format(p[0], p[1], p[2]))
-#    plt.plot(ra[0], vel[0], 'r*')
-#    plt.legend()
-#    plt.show()
-
-#    f.ticks.show()
-#    f.set_yaxis_coord_type('scalar')
-#    f.set_xaxis_coord_type('longitude')
-#    f.axis_labels.set_xtext('Right Ascension (J2000)')
-#    f.axis_labels.set_ytext('$v_{r} \mathrm{km} / \mathrm{s}$')
-#    f.axis_labels.show()
-#
-#    f.show_colorscale()
-#    f.add_colorbar()
-#    f.colorbar.set_axis_label_text('Integrated Flux'
-#                                   '$(\degree\,'
-#                                   '\mathrm{Jy}/\mathrm{beam})$')
-
-#    f.save(outpath + '{0}_model_ra_v.{1}'.format(prefix, filetype))
-
     # plot velocity-dec
 #    f = plt.imshow(dec_v, origin='lower', cmap='jet')
 #
@@ -307,10 +321,7 @@ def plot_model(cube, prefix, p):
 #    f.axis_labels.show()
 #
 #    plt.savefig(outpath + '{0}_model_v_dec.{1}'.format(prefix, filetype))
-#    print(ra_dec.shape)
-#    print(ra_v.shape)
-#    print(dec_v.shape)
-
+#
 #    return ra_px, dec_px, vel
 
 
