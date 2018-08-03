@@ -245,36 +245,6 @@ def plot_model(cube, prefix, p):
                     'dec', 'vel')
     f.savefig(outpath + '{0}_model_dec_v.{1}'.format(prefix, filetype))
 
-#########################################################
-    # plot velocity-dec
-#    f = plt.imshow(dec_v, origin='lower', cmap='jet')
-#
-#    plt.plot(dec, vel, 'k--',
-#             label='Gas core '
-#             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f})$'
-#             .format(p[0], p[1], p[2]))
-#    plt.plot(dec[0], vel[0], 'r*')
-#    plt.legend()
-#
-#    f.show_colorscale()
-#    f.add_colorbar()
-#    f.colorbar.set_axis_label_text('Integrated Flux'
-#                                   '$(\degree\,'
-#                                   '\mathrm{Jy}/\mathrm{beam})$')
-#
-#    print(dec)
-#
-#    f.ticks.show()
-#    f.set_yaxis_coord_type('scalar')
-#    f.set_xaxis_coord_type('latitude')
-#    f.axis_labels.set_xtext('Declination (J2000)')
-#    f.axis_labels.set_ytext('$v_{r} \mathrm{km} / \mathrm{s}$')
-#    f.axis_labels.show()
-#
-#    plt.savefig(outpath + '{0}_model_v_dec.{1}'.format(prefix, filetype))
-#
-#    return ra_px, dec_px, vel
-
 
 def plot_moment(cube, prefix, moment):
     m = cube.moment(order=moment).hdu
