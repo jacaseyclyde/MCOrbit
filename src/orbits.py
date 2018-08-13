@@ -15,6 +15,9 @@ Created on Fri Feb  9 16:08:27 2018
 import numpy as np
 import matplotlib.pyplot as plt
 
+import astropy.units as u
+from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
+
 np.set_printoptions(precision=5, threshold=np.inf)
 
 outpath = '../out/'
@@ -38,6 +41,8 @@ mKm = 1.e+3  # [m/km]
 # =============================================================================
 # Constants
 # =============================================================================
+gc = ICRS(ra=Angle('17h45m40.0409s'),
+          dec=Angle('-29:0:28.118 degrees'))  # galactic center
 G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2  # [pc^3 Msun^-1 yr^-2]
 
 # =============================================================================
@@ -50,8 +55,8 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # =============================================================================
 # Other
 # =============================================================================
-tstep = 100
-ttot = 5000
+tstep = 500
+ttot = 1e5
 
 
 # =============================================================================
@@ -95,23 +100,25 @@ def rot_mat(aop, loan, inc):
     return T
 
 
-def orbit(x0, v0, tstep, ttot):
-    '''
-    Takes in an initial periapsis position and velocity and generates an
-    integrated orbit around SgrA*. Returns 2 arrays of position and veolocity
-    vectors.
+def orbit(r_per, r_ap, tstep, ttot):
+    """Generates orbits.
+
+    Takes in a peri/apoapsis and generates an integrated orbit around SgrA*.
+    Returns 2 arrays of position and veolocity vectors.
 
     x0 = [pc], v0 = [km/s], tstep = [yr]
-    '''
+    """
     npoints = int(ttot / tstep)
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
-    
-    x0 = np.array([x0, 0., 0.])
-    v0 = np.array([0., v0, 0.])
 
-    pos[0] = x0  # [pc]
-    vel[0] = v0 * secYr / kmPc  # [pc/yr]
+    x0 = np.array([r_per, 0., 0.]) * u.pc
+    v_per = np.sqrt((2. * G * mass_func(r_per) * r_ap)
+                    / (r_per * (r_per + r_ap)))
+    v0 = np.array([0., v_per, 0.]) * u.pc / u.yr
+
+    pos[0] = x0.value  # [pc]
+    vel[0] = v0.value  # [pc/yr]
 
     posnorm = np.linalg.norm(pos[0])  # [pc]
     a_old = - G * mass_func(posnorm) / posnorm**2  # [pc/yr^2]
@@ -128,7 +135,7 @@ def orbit(x0, v0, tstep, ttot):
 
         a_old = a_new
 
-    return pos, (vel / secYr * kmPc)  # [pc], [km/s]
+    return pos, (vel * u.pc / u.yr).to(u.km / u.s).value  # [pc], [km/s]
 
 
 def sky(p):
@@ -137,7 +144,7 @@ def sky(p):
     the orbit must be elliptical and SgrA* lies at the focus
     """
 
-    (aop, loan, inc, x0, v0) = p
+    (aop, loan, inc, r_per, r_ap) = p
 
     # convert from degrees to radians
     aop = aop * np.pi / 180.
@@ -145,33 +152,48 @@ def sky(p):
     inc = inc * np.pi / 180.
 
     rot = rot_mat(aop, loan, inc)
-    orb_r, orb_v = orbit(x0, v0, tstep, ttot)
 
-    # Transform from Orbit plane to Sky plane
+    orb_r, orb_v = orbit(r_per, r_ap, tstep, ttot)
+
+    # Rotate reference frame
     # We can use the transpose of the rotation matrix instead of the inverse
-    # because it's Hermition
-    sky_R = np.matmul(rot.T, orb_r.T)
-    sky_V = np.matmul(rot.T, orb_v.T)
-    los_V = sky_V[-1]
+    # because it's Hermitian
+    rot_R = np.matmul(rot.T, orb_r.T)
+    rot_V = np.matmul(rot.T, orb_v.T)
 
-    model = np.array([sky_R[0], sky_R[1], los_V])
+    # take rotated reference frame to be galactocentric coordinates
+    # then transform to FK5 (matching our data)
+    c = Galactocentric(x=rot_R[0] * u.pc,
+                       y=rot_R[1] * u.pc,
+                       z=rot_R[2] * u.pc,
+                       v_x=rot_V[0] * u.km / u.s,
+                       v_y=rot_V[1] * u.km / u.s,
+                       v_z=rot_V[2] * u.km / u.s,
+                       galcen_distance=8. * u.kpc,
+                       galcen_coord=gc).transform_to(FK5)
 
-    return model.T  # return transpose to get individual ellipse points
+    return c
+
+
+def model(p):
+    # wrapper function to convert the coordinates to a numpy array of datapts
+    c = sky(p)
+    return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
 
 
 def plot_func(p):
-    orb_r, orb_v = orbit(p[3], p[4], tstep, ttot)
-    sky_xyv = sky(p)
+    orb_r, orb_v = orbit(p[-2], p[-1], tstep, ttot)
+    sky_xyv = model(p)
 
     plt.figure(1)
     plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')
-    plt.plot([0], [0], 'g*', label='Sgr A*')
+#    plt.plot([0], [0], 'g*', label='Sgr A*')
 
     plt.grid(True)
     plt.axes().set_aspect('equal', 'datalim')
     plt.title('Sky Plane')  # . p = {}'.format(p))
-    plt.xlabel('Offset (pc)')
-    plt.ylabel('Offset (pc)')
+    plt.xlabel('Offset (rad)')
+    plt.ylabel('Offset (rad)')
     plt.savefig(outpath + 'skyplane.pdf', bbox_inches='tight')
     plt.legend()
     plt.show()

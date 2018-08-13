@@ -56,7 +56,7 @@ class Model(object):
 
         D should be formatted as [[x,y]]
         '''
-        E = orbits.sky(theta)
+        E = orbits.model(theta)
 
         ln_like = 0.
 
