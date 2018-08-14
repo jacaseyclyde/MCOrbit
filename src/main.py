@@ -23,8 +23,7 @@ import os
 import warnings
 import time
 
-from multiprocessing import Pool
-from multiprocessing import cpu_count
+from schwimmbad import MPIPool
 
 import numpy as np
 
@@ -306,7 +305,6 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
     ndim = priors.shape[0]
 
     # Initialize the chain, which is uniformly distributed in parameter space
-    print("initializing parameter space")
     pos_min = priors[:, 0]
     pos_max = priors[:, 1]
     psize = pos_max - pos_min
@@ -325,12 +323,10 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
 
     m = model.Model(data)
 
-    with Pool() as pool:
+    with MPIPool() as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                         backend=backend)
 
-        ncpu = cpu_count()
-        print("Running MCMC on {0} CPUs".format(ncpu))
         old_tau = np.inf
         for sample in sampler.sample(pos, iterations=nmax, progress=True):
             if sampler.iteration % 100:
@@ -380,6 +376,9 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
 
 
 def main():
+    # Grab the initial time for total runtime statistics
+    t0 = time.time()
+
     # create output folder
     try:
         os.makedirs(outpath + stamp)
@@ -392,51 +391,48 @@ def main():
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
-#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
-#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
-#
-#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
-#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
-#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
+    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
+    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
+    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
 
-#    data = ppv_pts(masked_HNC3_2_cube)
-#
-#    # set up priors and do MCMC
-#    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
-#                       [.45, .55], [200., 300.]])
-#
-#    samples, pos_priors, all_samples = orbital_fitting(data, priors,
-#                                                       nwalkers=100, nmax=50,
-#                                                       reset=True)
-#
-#    # Visualize the fit
-#    print('plotting priors')
-#    corner_plot(pos_priors, priors, 'priors.pdf')
-#    print('plotting results')
-#    corner_plot(samples, priors, 'results.pdf')
-#
-#    # analyze the walker data
-#    aop, loan, inc, a, e = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-#                               zip(*np.percentile(samples, [16, 50, 84],
-#                                                  axis=0)))
+    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
+    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
+    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
+
+    data = ppv_pts(masked_HNC3_2_cube)
+
+    # set up priors and do MCMC
+    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
+                       [0., 1.5], [1.5, 4.]])
+
+    samples, pos_priors, all_samples = orbital_fitting(data, priors,
+                                                       nwalkers=100, nmax=5,
+                                                       reset=True)
+
+    # Visualize the fit
+    print('plotting priors')
+    corner_plot(pos_priors, priors, 'priors.pdf')
+    print('plotting results')
+    corner_plot(samples, priors, 'results.pdf')
+
+    # analyze the walker data
+    aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+                                      zip(*np.percentile(samples, [16, 50, 84],
+                                                         axis=0)))
 #    aop = aop[0]
 #    loan = loan[0]
 #    inc = inc[0]
-#    a = a[0]
-#    e = e[0]
-#    pbest = np.array([aop, loan, inc, a, e])
-#
-#    # print the best parameters found and plot the fit
-#    print(pbest)
-    p = np.array([90., 140., 210., 1.5, 4.])
-#    p = np.array([0., 215., 180., 4., 165.])
-    print(p)
-    t0 = time.time()
-    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', p)
+#    r_per = r_per[0]
+#    r_ap = r_ap[0]
+    pbest = np.array([aop[0], loan[0], inc[0], r_per[0], r_ap[0]])
+
+    # print the best parameters found and plot the fit
+    print("Best Fit")
+    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
+    pbest = np.array([90., 140., 210., 1.5, 4.])
+    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', pbest)
     t1 = time.time()
-    print(t1 - t0)
-    return HNC3_2_cube
+    print("Runtime: {0}".format(t1 - t0))
 
     # bit of cleanup
     if not os.listdir(outpath):
@@ -444,5 +440,5 @@ def main():
 
 
 if __name__ == '__main__':
-    cube = main()
+    main()
 #    pass
