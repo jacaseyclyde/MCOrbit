@@ -41,6 +41,8 @@ import aplpy
 import emcee
 from emcee.autocorr import AutocorrError
 
+
+
 # Ignores stuff
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 warnings.filterwarnings('ignore', 'Cube is a Stokes cube, ')
@@ -386,18 +388,18 @@ def main():
         pass
 
     # load data
-    HNC3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
+#    HNC3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
     masked_HNC3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
-    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
-    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
-
-    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
-    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
-    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
+#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
+#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
+#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
+#
+#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
+#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
+#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
 
     data = ppv_pts(masked_HNC3_2_cube)
 
@@ -429,8 +431,7 @@ def main():
     # print the best parameters found and plot the fit
     print("Best Fit")
     print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
-    pbest = np.array([90., 140., 210., 1.5, 4.])
-    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', pbest)
+#    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', pbest)
     t1 = time.time()
     print("Runtime: {0}".format(t1 - t0))
 
