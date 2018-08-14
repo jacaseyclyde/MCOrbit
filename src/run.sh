@@ -9,7 +9,7 @@
 module purge
 
 module load intel-python3
-module load mvapich2-2.2/intel
+module load openmpi-2.0/intel
 
 mpiexec python main.py
 
