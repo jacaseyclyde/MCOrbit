@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH --partition=nodes
-#SBATCH -n 10
+#SBATCH -n 100
 #SBATCH --time=00:01:00
 #SBATCH --job-name=CNDFIT
 #SBATCH --output=CND.out
