@@ -326,6 +326,10 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
     m = model.Model(data)
 
     with MPIPool() as pool:
+        if not pool.is_master():
+            pool.wait()
+            sys.exit()
+
         sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                         backend=backend)
 
