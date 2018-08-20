@@ -316,13 +316,6 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
     # save positions of the priors to return with all data
     pos_priors = pos
 
-    # Set up backend so we can save chain in case of catastrophe
-    # note that this requires h5py and emcee 3.0.0 on github
-    filename = 'chain.h5'
-    backend = emcee.backends.HDFBackend(filename)
-    if reset:
-        # starts simulation over
-        backend.reset(nwalkers, ndim)
 
     m = model.Model(data)
 
@@ -330,6 +323,14 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
         if not pool.is_master():
             pool.wait()
             sys.exit()
+
+        # Set up backend so we can save chain in case of catastrophe
+        # note that this requires h5py and emcee 3.0.0 on github
+        filename = 'chain.h5'
+        backend = emcee.backends.HDFBackend(filename)
+        if reset:
+            # starts simulation over
+            backend.reset(nwalkers, ndim)
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                         backend=backend)
