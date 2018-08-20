@@ -15,10 +15,6 @@ orbits to the circumnuclear disk
 # # Topmatter
 # =============================================================================
 # =============================================================================
-
-import orbits
-import model
-
 import os
 import sys
 import warnings
@@ -32,7 +28,6 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord, FK5, ICRS, Angle
 
 from spectral_cube import SpectralCube, LazyMask
-from spectral_cube.utils import VarianceWarning
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -42,20 +37,24 @@ import aplpy
 import emcee
 from emcee.autocorr import AutocorrError
 
+import orbits
+import model
 
-
-# Ignores stuff
+# Set up warning filters for things that don't really matter to us
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 warnings.filterwarnings('ignore', 'Cube is a Stokes cube, ')
-warnings.filterwarnings('ignore', category=VarianceWarning)
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+warnings.filterwarnings("ignore", message="The mpl_toolkits.axes_grid module "
+                        "was deprecated in version 2.1")
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
-stamp = ''
-outpath = '../out/' + stamp
+STAMP = ''
+OUTPATH = '../out/'
 
-figsize = (10, 10)
-filetype = 'pdf'
+FIGSIZE = (10, 10)
+FILETYPE = 'pdf'
 
 
 # =============================================================================
@@ -136,7 +135,7 @@ def _dec_labeler(dec, pos):
 
 def _model_plot(img, model, bounds, p, xflag, yflag):
     # start the basics of the plot
-    f = plt.figure(figsize=figsize)
+    f = plt.figure(figsize=FIGSIZE)
     plt.imshow(img, origin='lower', cmap='jet', figure=f, aspect='auto',
                extent=bounds)
 
@@ -177,7 +176,7 @@ def _model_plot(img, model, bounds, p, xflag, yflag):
         plt.xlabel('RA (J2000)')
 
         ra_locations = [(Angle('17h45m36.00s')
-                        + i * Angle('0h0m2.00s')).to(u.deg).value
+                         + i * Angle('0h0m2.00s')).to(u.deg).value
                         for i in range(4)]
         ra_locator = mpl.ticker.FixedLocator(ra_locations)
         ax.xaxis.set_major_locator(ra_locator)
@@ -235,17 +234,17 @@ def plot_model(cube, prefix, p):
     # plot dec vs ra
     f = _model_plot(ra_dec, [ra, dec], [ra_max, ra_min, dec_min, dec_max], p,
                     'ra', 'dec')
-    f.savefig(outpath + '{0}_model_ra_dec.{1}'.format(prefix, filetype))
+    f.savefig(OUTPATH + '{0}_model_ra_dec.{1}'.format(prefix, FILETYPE))
 
     # plot velocity vs ra
     f = _model_plot(ra_v, [ra, vel], [ra_max, ra_min, vmin, vmax], p,
                     'ra', 'vel')
-    f.savefig(outpath + '{0}_model_ra_v.{1}'.format(prefix, filetype))
+    f.savefig(OUTPATH + '{0}_model_ra_v.{1}'.format(prefix, FILETYPE))
 
     # plot dec vs v
     f = _model_plot(dec_v, [dec, vel], [dec_min, dec_max, vmin, vmax], p,
                     'dec', 'vel')
-    f.savefig(outpath + '{0}_model_dec_v.{1}'.format(prefix, filetype))
+    f.savefig(OUTPATH + '{0}_model_dec_v.{1}'.format(prefix, FILETYPE))
 
 
 def plot_moment(cube, prefix, moment):
@@ -261,12 +260,11 @@ def plot_moment(cube, prefix, moment):
     elif moment == 2:
         z_unit = '$\sigma_{v_{r}}^{2} (\mathrm{km}^{2}/\mathrm{s}^{2})$'
     else:
-        # TODO: Use a try except instead
         print('Please choose from moment 0, 1, or 2')
         return
 
     # plot data
-    f = aplpy.FITSFigure(m,  figsize=figsize)
+    f = aplpy.FITSFigure(m, figsize=FIGSIZE)
     f.set_xaxis_coord_type('longitude')
     f.set_yaxis_coord_type('latitude')
 
@@ -291,7 +289,7 @@ def plot_moment(cube, prefix, moment):
     f.add_colorbar()
     f.colorbar.set_axis_label_text(z_unit)
 
-    f.save(outpath + filename.format(prefix, moment, filetype))
+    f.save(OUTPATH + filename.format(prefix, moment, FILETYPE))
 
 
 def corner_plot(walkers, prange, filename):
@@ -300,7 +298,7 @@ def corner_plot(walkers, prange, filename):
                         range=prange)
     fig.set_size_inches(12, 12)
 
-    plt.savefig(outpath + stamp + filename, bbox_inches='tight')
+    plt.savefig(OUTPATH + STAMP + filename, bbox_inches='tight')
     plt.show()
 
 
@@ -389,7 +387,7 @@ def main():
 
     # create output folder
     try:
-        os.makedirs(outpath + stamp)
+        os.makedirs(OUTPATH + STAMP)
     except FileExistsError:
         pass
 
@@ -407,43 +405,43 @@ def main():
 #    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
 #    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
 
-    data = ppv_pts(masked_HNC3_2_cube)
-
-    # set up priors and do MCMC
-    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
-                       [0., 1.5], [1.5, 4.]])
-
-    samples, pos_priors, all_samples = orbital_fitting(data, priors,
-                                                       nwalkers=100, nmax=5,
-                                                       reset=True)
-
-    # Visualize the fit
-    print('plotting priors')
-    corner_plot(pos_priors, priors, 'priors.pdf')
-    print('plotting results')
-    corner_plot(samples, priors, 'results.pdf')
-
-    # analyze the walker data
-    aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                      zip(*np.percentile(samples, [16, 50, 84],
-                                                         axis=0)))
+#    data = ppv_pts(masked_HNC3_2_cube)
+#
+#    # set up priors and do MCMC
+#    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
+#                       [0., 1.5], [1.5, 4.]])
+#
+#    samples, pos_priors, all_samples = orbital_fitting(data, priors,
+#                                                       nwalkers=100, nmax=5,
+#                                                       reset=True)
+#
+#    # Visualize the fit
+#    print('plotting priors')
+#    corner_plot(pos_priors, priors, 'priors.pdf')
+#    print('plotting results')
+#    corner_plot(samples, priors, 'results.pdf')
+#
+#    # analyze the walker data
+#    aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+#                                      zip(*np.percentile(samples, [16, 50, 84],
+#                                                         axis=0)))
 #    aop = aop[0]
 #    loan = loan[0]
 #    inc = inc[0]
 #    r_per = r_per[0]
 #    r_ap = r_ap[0]
-    pbest = np.array([aop[0], loan[0], inc[0], r_per[0], r_ap[0]])
+#    pbest = np.array([aop[0], loan[0], inc[0], r_per[0], r_ap[0]])
 
     # print the best parameters found and plot the fit
-    print("Best Fit")
-    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
+#    print("Best Fit")
+#    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
 #    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', pbest)
-    t1 = time.time()
-    print("Runtime: {0}".format(t1 - t0))
+#    t1 = time.time()
+#    print("Runtime: {0}".format(t1 - t0))
 
     # bit of cleanup
-    if not os.listdir(outpath):
-        os.rmdir(outpath)
+    if not os.listdir(OUTPATH):
+        os.rmdir(OUTPATH)
 
 
 if __name__ == '__main__':
