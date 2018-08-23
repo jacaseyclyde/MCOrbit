@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-This is MC Orbit, an MCMC application for fitting orbits near Sgr A*.
-Copyright (C) 2018  J. Andrew Casey-Clyde and Julio Rodriguez
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+# This is MC Orbit, an MCMC application for fitting orbits near Sgr A*.
+# Copyright (C) 2017-2018  J. Andrew Casey-Clyde
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+"""This is MC Orbit, an MCMC application for fitting orbits near Sgr A*.
 
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
+MC Orbit is a program designed for fititng the orbits of gas clouds near
+Sagittarius A*, the supermassive black hole (SMBH) at the center of our galaxy,
+the Milky Way. This project relies on several large data files, which in the
+interest of saving space in the distribution of this application, are not
+included in the program repository. For quesitons about the data, please
+contact PI Elisabeth A.C. Mills.
+
 """
 # pylint: disable=C0413
 import os
