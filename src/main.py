@@ -114,12 +114,13 @@ def ppv_pts(cube):
         cube (SpectralCube): A SpectralCube from the spectral_cube module
 
     Returns:
-        A numpy array of ppv data points. Each data point is itself a list of
-        the form [ra, dec, vel], where ra and dec are the right ascension and
-        declination, respectively, in radians, while vel is the recessional
-        velocity in units of km/s, and is based on the moment 1 map of the
-        original data cube, which is itself an intensity weighted average of
-        the gas velocity at each sky position.
+        numpy.ndarray: A numpy array of ppv data points.
+
+        Each data point is itself a list of the form [ra, dec, vel], where ra
+        and dec are the right ascension and declination, respectively, in
+        radians, while vel is the recessional velocity in units of km/s, and is
+        based on the moment 1 map of the original data cube, which is itself an
+        intensity weighted average of the gas velocity at each sky position.
     """
     # pylint: disable=C0103
     # get the moment 1 map and positions, then convert to an array of ppv data
@@ -254,7 +255,20 @@ def _model_plot(img, mdl, bounds, params, flags):
     return fig
 
 
-def plot_model(cube, prefix, params):
+def plot_model(cube, params, prefix):
+    """Plots the model in 3 graphs depicting each plane of the ppv space
+
+    Plots the model over the data, showing all 3 planes of the
+    position-position-velocity space. The data in each plane is shown as a
+    moment 0 map of the integrated intensity in each data column (integrated
+    along the axis perpendicular to the axes shown in each plot).
+
+    Args:
+        cube (SpectralCube): The spectral cube to use for the model plot.
+        params (numpy.ndarray): The parameters to use for the orbital model
+        that is being plotted
+        prefix (str): Prefix to use when saving files
+    """
     # pylint: disable=E1101, C0103
     vmin = cube.spectral_axis.min().value
     vmax = cube.spectral_axis.max().value
@@ -332,8 +346,8 @@ def plot_moment(cube, prefix, moment):
 
 
 def corner_plot(walkers, prange, filename):
-    fig = corner.corner(walkers, labels=["$aop$", "$loan$", "$inc$", "$a$",
-                                         "$e$"],
+    fig = corner.corner(walkers,
+                        labels=["$aop$", "$loan$", "$inc$", "$a$", "$e$"],
                         range=prange)
     fig.set_size_inches(12, 12)
 
