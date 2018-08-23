@@ -1,44 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+This is MC Orbit, an MCMC application for fitting orbits near Sgr A*.
+Copyright (C) 2018  J. Andrew Casey-Clyde and Julio Rodriguez
 
-'''
-Developed by Julio S Rodriguez (@BlueEarOtter) for the purposes of fitting
-orbits to the minispiral of Sgr A West without proper motion data. There are
-still issues that need to be worked out.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-Modified by J. Andrew Casey-Clyde (@jacaseyclyde) For the purpose of fitting
-orbits to the circumnuclear disk
-'''
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-# =============================================================================
-# =============================================================================
-# # Topmatter
-# =============================================================================
-# =============================================================================
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+"""
+# pylint: disable=C0413
 import os
 import sys
 import warnings
 import time
-
-from schwimmbad import MPIPool
-
-import numpy as np
-
-import astropy.units as u
-from astropy.coordinates import SkyCoord, FK5, ICRS, Angle
-
-from spectral_cube import SpectralCube, LazyMask
-
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import corner
-import aplpy
-
-import emcee
-from emcee.autocorr import AutocorrError
-
-import orbits
-import model
 
 # Set up warning filters for things that don't really matter to us
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
@@ -47,6 +30,27 @@ warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 warnings.filterwarnings("ignore", message="The mpl_toolkits.axes_grid module "
                         "was deprecated in version 2.1")
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+from schwimmbad import MPIPool  # noqa
+
+import numpy as np  # noqa
+
+import astropy.units as u  # noqa
+from astropy.coordinates import SkyCoord, FK5, ICRS, Angle  # noqa
+
+from spectral_cube import SpectralCube, LazyMask  # noqa
+
+import matplotlib as mpl  # noqa
+import matplotlib.pyplot as plt  # noqa
+import corner  # noqa
+import aplpy  # noqa
+
+import emcee  # noqa
+from emcee.autocorr import AutocorrError  # noqa
+
+import orbits  # noqa
+import model  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -57,49 +61,78 @@ FIGSIZE = (10, 10)
 FILETYPE = 'pdf'
 
 
-# =============================================================================
-# =============================================================================
-# # Functions
-# =============================================================================
-# =============================================================================
-def notnan(x):
-    return ~np.isnan(x)
+def _notnan(num):
+    """
+    Wrapper function to do the opposite of isnan
+    """
+    return ~np.isnan(num)
 
 
-# =============================================================================
-# Data functions
-# =============================================================================
-def import_data(cubefile=None, maskfile=None):
-    HNC_cube = SpectralCube.read('../dat/{0}'.format(cubefile))
+def import_data(cubefile, maskfile=None):
+    """Imports spectral cube data
+
+    Imports spectral cube data and filters out background noise. If a maskfile
+    is specified, this is also applied to the imported data.
+
+    Args:
+        cubefile (str): Name of the spectral cube file to load
+        maskfile (str): Optional name of the mask file to apply.
+
+    Returns:
+        A spectral cube with "spectral" units of km/s
+        (the recessional velocity).
+    """
+    # pylint: disable=E1101
+    cube = SpectralCube.read('../dat/{0}'.format(cubefile))
 
     # create mask to remove the NaN buffer around the image file later
-    buffer_mask = LazyMask(notnan, cube=HNC_cube)
+    buffer_mask = LazyMask(_notnan, cube=cube)
 
     # mask out contents of maskfile as well as low intensity noise
     if maskfile is not None:
         mask_cube = SpectralCube.read('../dat/{0}'.format(maskfile))
-        mask = (mask_cube == u.Quantity(1)) & (HNC_cube > 0.1 * u.Jy / u.beam)
+        mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
 
     else:
-        mask = HNC_cube > 0.1 * u.Jy / u.beam
+        mask = cube > 0.1 * u.Jy / u.beam
 
-    HNC_cube = HNC_cube.with_mask(mask)
+    cube = cube.with_mask(mask)
 
-    HNC_cube = HNC_cube.subcube_from_mask(buffer_mask)
-    return HNC_cube.with_spectral_unit(u.km / u.s,
-                                       velocity_convention='radio')
+    cube = cube.subcube_from_mask(buffer_mask)
+    return cube.with_spectral_unit(u.km / u.s, velocity_convention='radio')
 
 
 def ppv_pts(cube):
+    """Converts spectral cube data to ppv datapoints.
+
+    This function converts the data in a spectral cube into individual
+    datapoints of position and recessional velocity, with each pixel of the
+    flattened image (i.e., each pixel of the moment 1 map) corresponding to a
+    single data point.
+
+    Args:
+        cube (SpectralCube): A SpectralCube from the spectral_cube module
+
+    Returns:
+        A numpy array of ppv data points. Each data point is itself a list of
+        the form [ra, dec, vel], where ra and dec are the right ascension and
+        declination, respectively, in radians, while vel is the recessional
+        velocity in units of km/s, and is based on the moment 1 map of the
+        original data cube, which is itself an intensity weighted average of
+        the gas velocity at each sky position.
+    """
+    # pylint: disable=C0103
     # get the moment 1 map and positions, then convert to an array of ppv data
-    m1 = cube.moment1()
-    dd, rr = m1.spatial_coordinate_map
-    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
+    moment1 = cube.moment1()
+    dd, rr = moment1.spatial_coordinate_map
+    c = SkyCoord(ra=rr, dec=dd, radial_velocity=moment1, frame='fk5')
     c = c.ravel()
 
     # convert to numpy array and remove nan velocities
-    data_pts = np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
-    data_pts = data_pts[notnan(data_pts[:, 2])]
+    data_pts = np.array([c.ra.rad,
+                         c.dec.rad,
+                         c.radial_velocity.value]).T
+    data_pts = data_pts[_notnan(data_pts[:, 2])]
 
     return data_pts
 
@@ -108,50 +141,63 @@ def ppv_pts(cube):
 # Plot functions
 # =============================================================================
 def _ra_labeler(dec, pos):
+    """
+    Generates the right ascension labels for plots.
+    """
+    # pylint: disable=E1101, W1401
+    # pylint: disable=anomalous-backslash-in-string
     ang = Angle(dec, unit=u.deg)
-    h = int(ang.hms.h)
-    m = abs(int(ang.hms.m))
-    s = abs(round(ang.hms.s, 2))
+    hour = int(ang.hms.h)
+    minute = abs(int(ang.hms.m))
+    sec = abs(round(ang.hms.s, 2))
 
     if pos == 0:
-        return "${0}h\,{1}m\,{2}s$".format(h, m, s)
-    else:
-        return "${0}s$".format(s)
+        return "${0}h\,{1}m\,{2}s$".format(hour, minute, sec)
+
+    return "${0}s$".format(sec)
 
 
 def _dec_labeler(dec, pos):
+    """
+    Generates the declinations labels for plots.
+    """
+    # pylint: disable=E1101, W1401
     ang = Angle(dec, unit=u.deg)
-    d = int(ang.dms.d)
-    m = abs(int(ang.dms.m))
-    s = abs(round(ang.dms.s, 2))
+    deg = int(ang.dms.d)
+    minute = abs(int(ang.dms.m))
+    sec = abs(round(ang.dms.s, 2))
 
-    if pos == 0 or (m == 0. and s == 0.):
-        return "${0}\degree\,{1}'\,{2}''$".format(d, m, s)
-    elif s == 0.:
-        return "${0}'\,{1}''$".format(m, s)
-    else:
-        return "${0}''$".format(s)
+    if pos == 0 or (minute == 0. and sec == 0.):
+        return "${0}\degree\,{1}'\,{2}''$".format(deg, minute, sec)
+    elif sec == 0.:
+        return "${0}'\,{1}''$".format(minute, sec)
+
+    return "${0}''$".format(sec)
 
 
-def _model_plot(img, model, bounds, p, xflag, yflag):
+def _model_plot(img, mdl, bounds, params, flags):
+    """
+    This is where the bulk of the plotting for the models actually occurs
+    """
+    # pylint: disable=E1101, W1401, C0103
     # start the basics of the plot
-    f = plt.figure(figsize=FIGSIZE)
-    plt.imshow(img, origin='lower', cmap='jet', figure=f, aspect='auto',
+    fig = plt.figure(figsize=FIGSIZE)
+    plt.imshow(img, origin='lower', cmap='jet', figure=fig, aspect='auto',
                extent=bounds)
 
     # Add the model
-    plt.plot(model[0], model[1], 'k--',
+    plt.plot(mdl[0], mdl[1], 'k--',
              label='Gas core '
              '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
-             .format(p[0], p[1], p[2]))
-    plt.plot(model[0][0], model[1][0], 'r*', label='Model Start')
+             .format(params[0], params[1], params[2]))
+    plt.plot(mdl[0][0], mdl[1][0], 'r*', label='Model Start')
 
     # all graphs need a color bar, but the label differs so we add it later
     cbar = plt.colorbar()
 
-    ax = plt.gca()
+    axes = plt.gca()
 
-    if xflag == 'ra' and yflag == 'dec':
+    if flags[0] == 'ra' and flags[1] == 'dec':
         # add Sgr A*
         gc = ICRS(ra=Angle('17h45m40.0409s'),
                   dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
@@ -172,82 +218,75 @@ def _model_plot(img, model, bounds, p, xflag, yflag):
         cbar.set_label('Integrated Flux $(\degree\,'
                        '\mathrm{Jy}/\mathrm{beam})$')
 
-    if xflag == 'ra':
+    if flags[0] == 'ra':
         plt.xlabel('RA (J2000)')
 
         ra_locations = [(Angle('17h45m36.00s')
                          + i * Angle('0h0m2.00s')).to(u.deg).value
                         for i in range(4)]
-        ra_locator = mpl.ticker.FixedLocator(ra_locations)
-        ax.xaxis.set_major_locator(ra_locator)
+        axes.xaxis.set_major_locator(mpl.ticker.FixedLocator(ra_locations))
 
-        ra_labeler = mpl.ticker.FuncFormatter(_ra_labeler)
-        ax.xaxis.set_major_formatter(ra_labeler)
+        axes.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(_ra_labeler))
     else:
         plt.xlabel('Dec (J2000)')
 
         dec_locations = [(Angle('-28:59:40.0 degrees')
                           - i * Angle('0:0:20.0 degrees')).value
                          for i in range(6)]
-        dec_locator = mpl.ticker.FixedLocator(dec_locations)
-        ax.xaxis.set_major_locator(dec_locator)
+        axes.xaxis.set_major_locator(mpl.ticker.FixedLocator(dec_locations))
 
-        dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
-        ax.xaxis.set_major_formatter(dec_labeler)
+        axes.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(_dec_labeler))
 
-    if yflag == 'dec':
+    if flags[1] == 'dec':
         plt.ylabel('Dec (J2000)')
 
         dec_locations = [(Angle('-28:59:40.0 degrees')
                           - i * Angle('0:0:20.0 degrees')).value
                          for i in range(6)]
-        dec_locator = mpl.ticker.FixedLocator(dec_locations)
-        ax.yaxis.set_major_locator(dec_locator)
+        axes.yaxis.set_major_locator(mpl.ticker.FixedLocator(dec_locations))
 
-        dec_labeler = mpl.ticker.FuncFormatter(_dec_labeler)
-        ax.yaxis.set_major_formatter(dec_labeler)
+        axes.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(_dec_labeler))
     else:
         plt.ylabel('$v_{r}\,(\mathrm{km} / \mathrm{s})$')
 
     plt.legend()
 
-    return f
+    return fig
 
 
-def plot_model(cube, prefix, p):
+def plot_model(cube, prefix, params):
+    # pylint: disable=E1101, C0103
     vmin = cube.spectral_axis.min().value
     vmax = cube.spectral_axis.max().value
     ra_min, ra_max = cube.longitude_extrema.value
     dec_min, dec_max = cube.latitude_extrema.value
 
     ra_dec = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
-    ra_dec = ra_dec.moment0(axis=0).array
-    ra_v = cube.moment0(axis=1).array
-    dec_v = cube.moment0(axis=2).array
 
     # get the model for the given parameters
-    c = orbits.sky(p)
+    c = orbits.sky(params)
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
     vel = c.radial_velocity.value
 
     # plot dec vs ra
-    f = _model_plot(ra_dec, [ra, dec], [ra_max, ra_min, dec_min, dec_max], p,
-                    'ra', 'dec')
+    f = _model_plot(ra_dec.moment0(axis=0).array, [ra, dec],
+                    [ra_max, ra_min, dec_min, dec_max], params, ['ra', 'dec'])
     f.savefig(OUTPATH + '{0}_model_ra_dec.{1}'.format(prefix, FILETYPE))
 
     # plot velocity vs ra
-    f = _model_plot(ra_v, [ra, vel], [ra_max, ra_min, vmin, vmax], p,
-                    'ra', 'vel')
+    f = _model_plot(cube.moment0(axis=1).array, [ra, vel],
+                    [ra_max, ra_min, vmin, vmax], params, ['ra', 'vel'])
     f.savefig(OUTPATH + '{0}_model_ra_v.{1}'.format(prefix, FILETYPE))
 
     # plot dec vs v
-    f = _model_plot(dec_v, [dec, vel], [dec_min, dec_max, vmin, vmax], p,
-                    'dec', 'vel')
+    f = _model_plot(cube.moment0(axis=2).array, [dec, vel],
+                    [dec_min, dec_max, vmin, vmax], params, ['dec', 'vel'])
     f.savefig(OUTPATH + '{0}_model_dec_v.{1}'.format(prefix, FILETYPE))
 
 
 def plot_moment(cube, prefix, moment):
+    # pylint: disable=E1101, W1401, C0103
     m = cube.moment(order=moment).hdu
     filename = '{0}_moment_{1}.{2}'
 
@@ -303,6 +342,7 @@ def corner_plot(walkers, prange, filename):
 
 
 def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
+    # pylint: disable=C0103
     ndim = priors.shape[0]
 
     # Initialize the chain, which is uniformly distributed in parameter space
@@ -313,7 +353,6 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
 
     # save positions of the priors to return with all data
     pos_priors = pos
-
 
     m = model.Model(data)
 
@@ -383,7 +422,7 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
 
 def main():
     # Grab the initial time for total runtime statistics
-    t0 = time.time()
+    # t0 = time.time()
 
     # create output folder
     try:
