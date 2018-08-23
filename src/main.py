@@ -71,26 +71,44 @@ FIGSIZE = (10, 10)
 FILETYPE = 'pdf'
 
 
+# =============================================================================
+# =============================================================================
+# # Function definitions
+# =============================================================================
+# =============================================================================
+
 def _notnan(num):
     """
-    Wrapper function to do the opposite of isnan
+    Inverse of :func:`numpy.isnan`
     """
     return ~np.isnan(num)
 
 
+# =============================================================================
+# Data handling functions
+# =============================================================================
+
 def import_data(cubefile, maskfile=None):
-    """Imports spectral cube data
+    """Pipeline function that processes spectral data.
 
-    Imports spectral cube data and filters out background noise. If a maskfile
-    is specified, this is also applied to the imported data.
+    Imports spectral cube data and filters out background noise. Noise filter
+    is set at 0.1 Jy / beam. If a maskfile is specified, this is also applied
+    to the imported data.
 
-    Args:
-        cubefile (str): Name of the spectral cube file to load
-        maskfile (str): Optional name of the mask file to apply.
+    Parameters
+    ----------
+    cubefile : str
+        Name of the spectral cube file to load
+    maskfile : str, optional
+        Name of the mask to apply. By default, no mask will be applied, but
+        background noise will still be filtered.
 
-    Returns:
-        A spectral cube with "spectral" units of km/s
-        (the recessional velocity).
+    Returns
+    -------
+    :obj:`spectral_cube.SpectralCube`
+        A spectral cube with "spectral" units of km/s (the recessional
+        velocity).
+
     """
     # pylint: disable=E1101
     cube = SpectralCube.read('../dat/{0}'.format(cubefile))
@@ -118,19 +136,25 @@ def ppv_pts(cube):
     This function converts the data in a spectral cube into individual
     datapoints of position and recessional velocity, with each pixel of the
     flattened image (i.e., each pixel of the moment 1 map) corresponding to a
-    single data point.
+    single data point. Pixels without a recessoinal velocity (i.e., `NaN`
+    valued velocities) are not considered datapoints
 
-    Args:
-        cube (SpectralCube): A SpectralCube from the spectral_cube module
+    Parameters
+    ----------
+    cube : :obj:`spectral_cube.SpectralCube`
+        Spectral cube to be converted
 
-    Returns:
-        numpy.ndarray: A numpy array of ppv data points.
+    Returns
+    -------
+    :obj:`numpy.ndarray`
+        A numpy array of ppv data points.
 
         Each data point is itself a list of the form [ra, dec, vel], where ra
         and dec are the right ascension and declination, respectively, in
         radians, while vel is the recessional velocity in units of km/s, and is
         based on the moment 1 map of the original data cube, which is itself an
         intensity weighted average of the gas velocity at each sky position.
+
     """
     # pylint: disable=C0103
     # get the moment 1 map and positions, then convert to an array of ppv data
@@ -143,6 +167,8 @@ def ppv_pts(cube):
     data_pts = np.array([c.ra.rad,
                          c.dec.rad,
                          c.radial_velocity.value]).T
+
+    # strip out anything that's not an actual data point
     data_pts = data_pts[_notnan(data_pts[:, 2])]
 
     return data_pts
@@ -170,7 +196,7 @@ def _ra_labeler(dec, pos):
 
 def _dec_labeler(dec, pos):
     """
-    Generates the declinations labels for plots.
+    Generates the declination labels for plots.
     """
     # pylint: disable=E1101, W1401
     ang = Angle(dec, unit=u.deg)
@@ -229,6 +255,9 @@ def _model_plot(img, mdl, bounds, params, flags):
         cbar.set_label('Integrated Flux $(\degree\,'
                        '\mathrm{Jy}/\mathrm{beam})$')
 
+    # Set the labels for the x and y axes based on the flags passed
+    # Note (JACC): I'm sure this can be done in a much better way, w/o flags
+    # XXX: Refactor this
     if flags[0] == 'ra':
         plt.xlabel('RA (J2000)')
 
@@ -268,16 +297,20 @@ def _model_plot(img, mdl, bounds, params, flags):
 def plot_model(cube, params, prefix):
     """Plots the model in 3 graphs depicting each plane of the ppv space
 
-    Plots the model over the data, showing all 3 planes of the
-    position-position-velocity space. The data in each plane is shown as a
-    moment 0 map of the integrated intensity in each data column (integrated
-    along the axis perpendicular to the axes shown in each plot).
+    Plots an orbit model (as defined by `params`) over the data, showing all 3
+    planes of the position-position-velocity space. The data in each plane is
+    shown as a moment 0 map of the integrated intensity in each data column
+    (integrated along the axis perpendicular to the axes shown in each plot).
 
-    Args:
-        cube (SpectralCube): The spectral cube to use for the model plot.
-        params (numpy.ndarray): The parameters to use for the orbital model
-        that is being plotted
-        prefix (str): Prefix to use when saving files
+    Parameters
+    ----------
+    cube : :obj:`spectral_cube.SpectralCube`
+        The spectral cube to use for the model plot.
+    params : :obj:`numpy.ndarray`
+        The parameters to use for the orbital model that is being plotted.
+    prefix : str
+        Prefix to use when saving files.
+
     """
     # pylint: disable=E1101, C0103
     vmin = cube.spectral_axis.min().value
