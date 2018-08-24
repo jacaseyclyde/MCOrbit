@@ -85,7 +85,7 @@ def _notnan(num):
 
 
 # =============================================================================
-# Data handling functions
+# Data fandling functions
 # =============================================================================
 
 def import_data(cubefile, maskfile=None):
@@ -342,11 +342,29 @@ def plot_model(cube, params, prefix):
     f.savefig(OUTPATH + '{0}_model_dec_v.{1}'.format(prefix, FILETYPE))
 
 
-def plot_moment(cube, prefix, moment):
+def plot_moment(cube, moment, prefix):
+    """Saves an image of the given `moment` for a spectral cube
+
+    Create a plot of the given `moment` for a spectral cube. Plots are then
+    saved to the path specified by OUTPATH, with names generated based on the
+    `prefix` given, as well as the `moment`.
+
+    Parameters
+    ----------
+    cube : :obj:`spectral_cube.SpectralCube`
+        The spectral cube to plot moments for
+    moment : int
+        The moment to plot
+    prefix : str
+        Prefix to use for filename
+
+    """
+    # TODO: Refactor function to plot all 3 moments in a single call
     # pylint: disable=E1101, W1401, C0103
     m = cube.moment(order=moment).hdu
     filename = '{0}_moment_{1}.{2}'
 
+    # XXX: Throw an error instead of printing
     z_unit = ''
     if moment == 0:
         z_unit = 'Integrated Flux $(\mathrm{Hz}\,\mathrm{Jy}/\mathrm{beam})$'
@@ -389,6 +407,26 @@ def plot_moment(cube, prefix, moment):
 
 
 def corner_plot(walkers, prange, filename):
+    """Wrapper function for creating and saving graphs of the parameter space.
+
+    Creates and saves a corner plot of the parameter space we are doing MCMC
+    in. This is really just a wrapper function for :func:`corner.corner` that
+    also saves the final graph.
+
+    Parameters
+    ----------
+    walkers : :obj:`numpy.ndarray`
+        Contains the positions of all the walkers which are used to explore the
+        parameter space. Each walker is a :obj:`numpy.ndarray` whose values
+        specify the walker's position in parameter space.
+    prange : array_like
+        The bounds of the parameter space.
+    filename : str
+        Name of the file to save the plot to.
+
+    """
+    # TODO: update the docstring entry for walkers with their structure
+    # TODO: Fix labels
     fig = corner.corner(walkers,
                         labels=["$aop$", "$loan$", "$inc$", "$a$", "$e$"],
                         range=prange)
@@ -398,18 +436,74 @@ def corner_plot(walkers, prange, filename):
     plt.show()
 
 
-def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
+# =============================================================================
+# MCMC functions
+# =============================================================================
+
+def orbital_fitting(data, pspace, nwalkers=100, nmax=500, reset=True):
+    """Uses MCMC to explore the parameter space specified by `priors`.
+
+    Uses MCMC to fit orbits to the given `data`, exploring the parameter space
+    specified by `priors`.
+
+    Parameters
+    ----------
+    data : :obj:`numpy.ndarray`
+        An array of ppv datapoints. See the returns of :func:`ppv_pts` for more
+        details on the formatting of this array
+    pspace : :obj:`numpy.ndarray`
+        A numpy array specifying the bounds of the parameter space. This should
+        have the form::
+
+            np.array([
+                      [aop_min, aop_max],
+                      [loan_min, loan_max],
+                      [inc_min, inc_max],
+                      [r_per_min, r_per_max],
+                      [r_ap_min, r_ap_max]
+                      ])
+
+        where aop, loan, inc, r_per and r_ap are the parameters we are
+        exploring (argument of pericenter, line of ascending nodes, inclination
+        radius of pericenter, and radius of apocenter, respectively), and the
+        _min and _max postfixes indicate, respectively, the minimum and maximum
+        valuesfor each of these axes in parameter space
+    nwalkers : int, optional
+        The number of walkers to use for parameter space exploration. Default
+        is 100.
+    nmax : int, optional
+        The maximum number of steps to run through. Default is 500.
+    reset : bool, optional
+        If True, the state of the probability space sampler will be reset, and
+        sampling will start from scratch. If False, the sampler will load it's
+        last recorded state, and continue sampling the space from there.
+        Default is True.
+
+    Returns
+    -------
+    samples : array[..., nwalkers, ndim]
+        The positions of all walkers after sampling is complete.
+    priors : array[..., nwalkers, ndim]
+        The positions of all walkers at the start of sampling.
+    all_samples : array[..., nwalkers, ndim, log_prob_samples, log_prob_priors]
+        The positions of all walkers after sampling is complete, as well as the
+        log probabilities of the samples and the priors.
+
+    """
     # pylint: disable=C0103
-    ndim = priors.shape[0]
+    # TODO: refactor this code
+    # JACC Note: it might just be worth it to rebuild this entire section from
+    # the ground up
+    ndim = pspace.shape[0]
 
     # Initialize the chain, which is uniformly distributed in parameter space
-    pos_min = priors[:, 0]
-    pos_max = priors[:, 1]
+    pos_min = pspace[:, 0]
+    pos_max = pspace[:, 1]
     psize = pos_max - pos_min
     pos = [pos_min + psize * np.random.rand(ndim) for i in range(nwalkers)]
 
     # save positions of the priors to return with all data
-    pos_priors = pos
+    priors = pos
 
     m = model.Model(data)
 
@@ -466,6 +560,7 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
     # let's plot the results
     # using a try catch because as of testing, log_prior_samples is a NoneType
     # object, and I'm not sure why
+    # XXX: needs fixing so that this just isn't an issue anymore
     try:
         all_samples = np.concatenate((samples, log_prob_samples[:, None],
                                       log_prior_samples[:, None]), axis=1)
@@ -474,10 +569,21 @@ def orbital_fitting(data, priors, nwalkers=100, nmax=500, reset=True):
         all_samples = np.concatenate((samples, log_prob_samples[:, None]),
                                      axis=1)
 
-    return samples, pos_priors, all_samples
+    return samples, priors, all_samples
 
+
+# =============================================================================
+# Main program
+# =============================================================================
 
 def main():
+    """The main function of MC Orbit. Used to start all sampling
+
+    This is the main function for MC Orbit. It carries out what is effectivley
+    the entire study, including applying masks, initializing plots, and
+    starting the actual MCMC process.
+
+    """
     # Grab the initial time for total runtime statistics
     # t0 = time.time()
 
@@ -488,20 +594,20 @@ def main():
         pass
 
     # load data
-#    HNC3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
-    masked_HNC3_2_cube = import_data(cubefile='HNC3_2.fits',
+#    hnc3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
+    masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=0)
-#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=1)
-#    plot_moment(HNC3_2_cube, 'HNC3_2', moment=2)
+#    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
+#    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
+#    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
 #
-#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=0)
-#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=1)
-#    plot_moment(masked_HNC3_2_cube, 'HNC3_2_masked', moment=2)
+#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
 
-#    data = ppv_pts(masked_HNC3_2_cube)
+#    data = ppv_pts(masked_hnc3_2_cube)
 #
 #    # set up priors and do MCMC
 #    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
@@ -531,7 +637,7 @@ def main():
     # print the best parameters found and plot the fit
 #    print("Best Fit")
 #    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
-#    plot_model(masked_HNC3_2_cube, 'HNC3_2_masked', pbest)
+#    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
 #    t1 = time.time()
 #    print("Runtime: {0}".format(t1 - t0))
 
