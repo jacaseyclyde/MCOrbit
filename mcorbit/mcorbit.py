@@ -59,8 +59,8 @@ import aplpy  # noqa
 import emcee  # noqa
 from emcee.autocorr import AutocorrError  # noqa
 
-import orbits  # noqa
-import model  # noqa
+from . import orbits  # noqa
+from . import model  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 

@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 
 import numpy as np  # noqa
 
-import orbits  # noqa
+from . import orbits  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
