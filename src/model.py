@@ -22,9 +22,13 @@ Created on Fri Feb  9 16:08:27 2018
 
 @author: jacaseyclyde
 """
-import numpy as np
+import warnings
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 
-import orbits
+import numpy as np  # noqa
+
+import orbits  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -88,6 +92,9 @@ class Model(object):
         dist = data_pt - model_pt
 
         prob = np.exp(-0.5 * np.matmul(dist, np.matmul(self.inv_cov, dist)))
+
+        if np.isnan(prob):
+            prob = 0.0
 
         return prob
 
