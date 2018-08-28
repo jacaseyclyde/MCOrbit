@@ -505,7 +505,7 @@ def orbital_fitting(data, pspace, nwalkers=100, nmax=500, reset=True):
     # save positions of the priors to return with all data
     priors = pos
 
-    m = model.Model(data)
+    m = model.Model(data, pspace)
 
     with MPIPool() as pool:
         if not pool.is_master():
@@ -610,10 +610,10 @@ def main():
 #    data = ppv_pts(masked_hnc3_2_cube)
 #
 #    # set up priors and do MCMC
-#    priors = np.array([[55., 65.], [130., 140.], [295., 305.],
+#    pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
 #                       [0., 1.5], [1.5, 4.]])
 #
-#    samples, pos_priors, all_samples = orbital_fitting(data, priors,
+#    samples, pos_priors, all_samples = orbital_fitting(data, pspace,
 #                                                       nwalkers=100, nmax=5,
 #                                                       reset=True)
 #

@@ -22,6 +22,7 @@ Created on Fri Feb  9 16:08:27 2018
 
 @author: jacaseyclyde
 """
+# pylint: disable=C0413
 import warnings
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
@@ -50,6 +51,11 @@ class Model(object):
         radians, while vel is the recessional velocity in units of km/s, and is
         based on the moment 1 map of the original data cube, which is itself an
         intensity weighted average of the gas velocity at each sky position.
+    space : :obj:`numpy.ndarray`
+        A 2-d array of floats that gives the bounds of the model parameter
+        space, where the first axis represents the axes of the parameter space,
+        while the 2nd axis are the minimum and maximum values of the parameter
+        space axes.
 
     Attributes
     ----------
@@ -63,8 +69,9 @@ class Model(object):
 
     """
 
-    def __init__(self, data):
+    def __init__(self, data, space):
         self.data = data
+        self.space = space
         cov = np.cov(self.data.T)
         self.inv_cov = np.linalg.inv(cov)
 
@@ -123,6 +130,9 @@ class Model(object):
         for model_pt in model:
             prob += self.point_point_prob(data_pt, model_pt)
 
+        # Normalize over all the points in the model
+        prob /= model.shape[0]  # num discrete model pts
+
         return prob
 
     def ln_like(self, theta):
@@ -153,8 +163,9 @@ class Model(object):
 
         ln_like = 0.
 
-        for data_pt in self.data:
-            ln_like += np.log(self.point_model_prob(data_pt, model))
+        with np.errstate(divide='ignore'):  # suppress divide by zero warnings
+            for data_pt in self.data:
+                ln_like += np.log(self.point_model_prob(data_pt, model))
 
         return ln_like
 
@@ -181,13 +192,22 @@ class Model(object):
 
         Notes
         -----
-        Currently, we are assuming a uniform prior. This method is primarily a
-        placeholder, implemented both to account for the possibility that this
-        could change in the future, and to fully in line with the way Bayesian
-        probabilities and MCMC are supposed to work.
+        Currently, we are assuming a flat prior within the parameter space.
 
         """
-        return 0.
+        prior = 1.
+        for i in range(self.space.shape[0]):
+            pmin = min(self.space[i])
+            pmax = max(self.space[i])
+
+            if theta[i] < pmin or theta[i] > pmax:
+                prior *= 0.
+            else:
+                prior *= (1. / (pmax - pmin))
+
+        with np.errstate(divide='ignore'):  # suppress divide by zero warnings
+            ln_prior = np.log(prior)
+        return ln_prior
 
     def ln_prob(self, theta):
         """Calculates the probability that a dataset generated from a model.
@@ -215,7 +235,5 @@ class Model(object):
 
         """
         ln_prior = self.ln_prior(theta)
-        if not np.isfinite(ln_prior):
-            return -np.inf
         ln_like = self.ln_like(theta)
         return ln_prior + ln_like
