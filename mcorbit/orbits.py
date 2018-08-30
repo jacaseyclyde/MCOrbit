@@ -48,7 +48,7 @@ G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2  # [pc^3 Msun^-1 yr^-2]
 # =============================================================================
 # Mass Data
 # =============================================================================
-Mdat = np.genfromtxt('../dat/enclosed_mass_distribution.txt')
+Mdat = np.genfromtxt('./dat/enclosed_mass_distribution.txt')
 Mdist = Mdat[:, 0] * pcArcsec  # [pc]
 Menc = Mdat[:, 1]  # [log(Msun)]
 
@@ -108,6 +108,7 @@ def orbit(r_per, r_ap, tstep, ttot):
 
     x0 = [pc], v0 = [km/s], tstep = [yr]
     """
+    # pylint: disable=E1101
     npoints = int(ttot / tstep)
     pos = np.zeros((npoints, 3))
     vel = np.zeros_like(pos)
@@ -143,7 +144,7 @@ def sky(p):
     Takes in coordinates ~p in degrees~ and spits out f1 -- the constraint that
     the orbit must be elliptical and SgrA* lies at the focus
     """
-
+    # pylint: disable=E1101
     (aop, loan, inc, r_per, r_ap) = p
 
     # convert from degrees to radians
