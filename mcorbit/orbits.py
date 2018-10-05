@@ -12,6 +12,7 @@ Created on Fri Feb  9 16:08:27 2018
 # # Topmatter
 # =============================================================================
 # =============================================================================
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -48,7 +49,8 @@ G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2  # [pc^3 Msun^-1 yr^-2]
 # =============================================================================
 # Mass Data
 # =============================================================================
-Mdat = np.genfromtxt('./dat/enclosed_mass_distribution.txt')
+Mdat = np.genfromtxt(os.path.join(os.path.dirname(__file__),
+                                  '../dat/enclosed_mass_distribution.txt'))
 Mdist = Mdat[:, 0] * pcArcsec  # [pc]
 Menc = Mdat[:, 1]  # [log(Msun)]
 
