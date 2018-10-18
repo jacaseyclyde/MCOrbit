@@ -16,7 +16,9 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 import astropy.units as u
+from astropy.constants import G
 from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 
 np.set_printoptions(precision=5, threshold=np.inf)
@@ -44,8 +46,6 @@ mKm = 1.e+3  # [m/km]
 # =============================================================================
 gc = ICRS(ra=Angle('17h45m40.0409s'),
           dec=Angle('-29:0:28.118 degrees'))  # galactic center
-G = 6.67e-11 * kgMsun / (mKm * kmPc)**3 * secYr**2  # [pc^3 Msun^-1 yr^-2]
-
 # =============================================================================
 # Mass Data
 # =============================================================================
@@ -57,7 +57,7 @@ Menc = Mdat[:, 1]  # [log(Msun)]
 # =============================================================================
 # Other
 # =============================================================================
-tstep = 500
+h = 500  # timestep
 ttot = 1e5
 
 
@@ -74,6 +74,30 @@ def mass_func(dist):
     dist = [pc]
     '''
     return 10**np.interp(dist, Mdist, Menc)  # [Msun]
+
+
+def potential(dist):
+    """Definition of the potential in a region.
+
+    Function that defines the gravitational potential at a given radius
+    from Sgr A*
+
+    Parameters
+    ----------
+    dist : float
+        The distance from Sgr A* at which to compute the potential.
+
+    Returns
+    -------
+    float
+        The calculated potential
+
+    Todo
+    ----
+    Check units on the returned potential
+
+    """
+    return -G * mass_func(dist) / dist
 
 
 def rot_mat(aop, loan, inc):
@@ -111,34 +135,67 @@ def orbit(r_per, r_ap, tstep, ttot):
     x0 = [pc], v0 = [km/s], tstep = [yr]
     """
     # pylint: disable=E1101
-    npoints = int(ttot / tstep)
-    pos = np.zeros((npoints, 3))
-    vel = np.zeros_like(pos)
+#    npoints = int(ttot / tstep)
+#    pos = np.zeros((npoints, 3))
+#    vel = np.zeros_like(pos)
+#
+#    x0 = np.array([r_per, 0., 0.]) * u.pc
+#    v_per = np.sqrt((2. * G * mass_func(r_per) * r_ap)
+#                    / (r_per * (r_per + r_ap)))
+#    v0 = np.array([0., v_per, 0.]) * u.pc / u.yr
+#
+#    pos[0] = x0.value  # [pc]
+#    vel[0] = v0.value  # [pc/yr]
+#
+#    posnorm = np.linalg.norm(pos[0])  # [pc]
+#    a_old = - G * mass_func(posnorm) / posnorm**2  # [pc/yr^2]
+#    a_old = a_old * pos[0] / posnorm
+#
+#    for i in range(npoints - 1):
+#        pos[i+1] = pos[i] + vel[i] * tstep + 0.5 * a_old * tstep**2
+#
+#        posnorm = np.linalg.norm(pos[i+1])
+#        a_new = - G * mass_func(posnorm) / posnorm**2
+#        a_new = a_new * pos[i+1] / posnorm
+#
+#        vel[i+1] = vel[i] + 0.5 * (a_old + a_new) * tstep
+#
+#        a_old = a_new
+#
+#    return pos, (vel * u.pc / u.yr).to(u.km / u.s).value  # [pc], [km/s]
+    # sticking to 2D polar for initial integration since z = 0
+    r_pos = np.array([r_per])
+    r_vel = np.array([0.])
 
-    x0 = np.array([r_per, 0., 0.]) * u.pc
-    v_per = np.sqrt((2. * G * mass_func(r_per) * r_ap)
-                    / (r_per * (r_per + r_ap)))
-    v0 = np.array([0., v_per, 0.]) * u.pc / u.yr
+    ang_pos = np.array([0.])
+    ang_v0 = (r_ap / r_per) * np.sqrt((2 * G / ((r_per ** 2) - (r_ap ** 2)))
+                                      * ((mass_func(r_per) / r_per)
+                                      - (mass_func(r_ap) / r_ap)))
+    ang_vel = np.array([ang_v0])
 
-    pos[0] = x0.value  # [pc]
-    vel[0] = v0.value  # [pc/yr]
+    l_cons = ang_v0 * (r_per ** 2)  # angular momentum per unit mass
+    while ang_pos[-1] < 2 * np.pi:
+        # radial portion first
+        r_half = r_pos[-1] + 0.5 * h * r_vel[-1]  # first kick
+        r_vel_new = r_vel[-1] - h * 8  # drift  # TODO: teach me how to gradie(nt)
+        r_new = r_half + 0.5 * h * r_vel_new  # second kick
+        r_pos = np.append(r_pos, r_new)
 
-    posnorm = np.linalg.norm(pos[0])  # [pc]
-    a_old = - G * mass_func(posnorm) / posnorm**2  # [pc/yr^2]
-    a_old = a_old * pos[0] / posnorm
+        # then radial
+        ang_half = ang_pos[-1] + 0.5 * h * ang_vel[-1]
+        ang_vel_new = l_cons / (r_new ** 2)
+        ang_new = ang_half + 0.5 * h * ang_vel_new
+        ang_pos = np.append(ang_pos, ang_new)
 
-    for i in range(npoints - 1):
-        pos[i+1] = pos[i] + vel[i] * tstep + 0.5 * a_old * tstep**2
+    pos = np.array([r_pos * np.cos(ang_pos),
+                    r_pos * np.sin(ang_pos),
+                    [0.] * len(r_pos)])
 
-        posnorm = np.linalg.norm(pos[i+1])
-        a_new = - G * mass_func(posnorm) / posnorm**2
-        a_new = a_new * pos[i+1] / posnorm
+    vel = np.array([r_vel * np.cos(ang_pos) - r_pos * ang_vel * np.sin(ang_pos),
+                    r_vel * np.sin(ang_pos) + r_pos * ang_vel * np.cos(ang_pos),
+                    [0.] * len(r_vel)])
 
-        vel[i+1] = vel[i] + 0.5 * (a_old + a_new) * tstep
-
-        a_old = a_new
-
-    return pos, (vel * u.pc / u.yr).to(u.km / u.s).value  # [pc], [km/s]
+    return pos, vel
 
 
 def sky(p):

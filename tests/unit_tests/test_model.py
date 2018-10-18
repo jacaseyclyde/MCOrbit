@@ -6,20 +6,14 @@ Created on Wed Aug 22 13:32:12 2018
 @author: jacaseyclyde
 """
 # pylint: disable=C0413
-import unittest
+import pytest
 
-import warnings
-warnings.filterwarnings("ignore", message="numpy.dtype size changed")
-warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
-warnings.filterwarnings("ignore", message="divide by zero encountered in log")
+import numpy as np
 
-
-import numpy as np  # noqa
-
-import mcorbit  # noqa
+import mcorbit
 
 
-class TestPointPointProbability(unittest.TestCase):
+class TestPointPointProbability(object):
     """
     Test the point to point probability model.
     """

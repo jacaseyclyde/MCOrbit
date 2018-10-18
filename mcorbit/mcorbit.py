@@ -180,6 +180,7 @@ def ppv_pts(cube):
 def _ra_labeler(dec, pos):
     """
     Generates the right ascension labels for plots.
+
     """
     # pylint: disable=E1101, W1401
     # pylint: disable=anomalous-backslash-in-string
