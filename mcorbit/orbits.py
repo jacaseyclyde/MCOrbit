@@ -1,11 +1,28 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
+# This is MC Orbit, an MCMC application for fitting orbits near Sgr A*.
+# Copyright (C) 2017-2018  J. Andrew Casey-Clyde
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-'''
+"""
 Created on Fri Feb  9 16:08:27 2018
 
 @author: jacaseyclyde
-'''
+
+"""
 
 # =============================================================================
 # =============================================================================
@@ -76,7 +93,7 @@ def mass_func(dist):
     return 10**np.interp(dist, Mdist, Menc)  # [Msun]
 
 
-def potential(dist):
+def grav_potential(dist):
     """Definition of the potential in a region.
 
     Function that defines the gravitational potential at a given radius
@@ -98,6 +115,26 @@ def potential(dist):
 
     """
     return -G * mass_func(dist) / dist
+
+
+def potential_grad(dist, h=0.001):
+    """Calculates the gradient of the potential at a point.
+
+    Calculates the approximate gradient of the gravitational potential
+    due to Sgr A* at the point indicated.
+
+    Parameters
+    ----------
+    dist : float
+        The distance from Sgr A* at which to calculate the potential
+    h : float, optional (default = 0.001)
+        The spacing to be used for calculating the potential
+
+    """
+    sample_dists = np.array([dist - h, dist, dist + h])
+    potentials = grav_potential(sample_dists)
+    grads = np.gradient(potentials, sample_dists)
+    return grads[1]
 
 
 def rot_mat(aop, loan, inc):
