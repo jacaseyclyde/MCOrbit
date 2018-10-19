@@ -17,19 +17,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""This integrates orbits.
+
+The functions defined here calculate integrated orbits around
+Sagittarius A*, tracking both positional and velocity data. There are
+additionally functions built to rotate the integrated orbits into the
+FK5 coordinate system for comparison to radio data.
+
 """
-Created on Fri Feb  9 16:08:27 2018
 
-@author: jacaseyclyde
-
-"""
-
-# =============================================================================
-# =============================================================================
-# # Topmatter
-# =============================================================================
-# =============================================================================
 import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -38,51 +36,21 @@ import astropy.units as u
 from astropy.constants import G
 from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 
-np.set_printoptions(precision=5, threshold=np.inf)
-
 outpath = '../out/'
 
-# =============================================================================
-# =============================================================================
-# # Global Parameters
-# =============================================================================
-# =============================================================================
+# galactic center
+gc = ICRS(ra=Angle('17h45m40.0409s'), dec=Angle('-29:0:28.118 degrees'))
 
-# =============================================================================
-# Conversions
-# =============================================================================
-pcArcsec = 8e3 / 60 / 60 / 180 * np.pi  # [pc/arcsec] @ gal. center
-kgMsun = 1.98855e+30  # [kg/Msun]
-secYr = 60. * 60. * 24. * 365.  # [s/yr]
-kmPc = 3.0857e+13  # [km/pc]
-mKm = 1.e+3  # [m/km]
-
-
-# =============================================================================
-# Constants
-# =============================================================================
-gc = ICRS(ra=Angle('17h45m40.0409s'),
-          dec=Angle('-29:0:28.118 degrees'))  # galactic center
-# =============================================================================
-# Mass Data
-# =============================================================================
 Mdat = np.genfromtxt(os.path.join(os.path.dirname(__file__),
                                   '../dat/enclosed_mass_distribution.txt'))
-Mdist = Mdat[:, 0] * pcArcsec  # [pc]
-Menc = Mdat[:, 1]  # [log(Msun)]
+Mdist = Angle(Mdat[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
+Menc = 10**Mdat[:, 1] * u.Msun
 
-# =============================================================================
-# Other
-# =============================================================================
-h = 500  # timestep
-ttot = 1e5
+h = 500 * u.yr  # timestep
+
+G = G.to((u.pc**3) / (u.Msun * u.yr**2))
 
 
-# =============================================================================
-# =============================================================================
-# # Functions
-# =============================================================================
-# =============================================================================
 def mass_func(dist):
     '''
     Takes in a distance from SgrA* and returns the enclosed mass. Based on data
@@ -90,7 +58,7 @@ def mass_func(dist):
 
     dist = [pc]
     '''
-    return 10**np.interp(dist, Mdist, Menc)  # [Msun]
+    return np.interp(dist, Mdist, Menc) * u.Msun
 
 
 def grav_potential(dist):
@@ -117,7 +85,7 @@ def grav_potential(dist):
     return -G * mass_func(dist) / dist
 
 
-def potential_grad(dist, h=0.001):
+def potential_grad(dist):
     """Calculates the gradient of the potential at a point.
 
     Calculates the approximate gradient of the gravitational potential
@@ -131,10 +99,13 @@ def potential_grad(dist, h=0.001):
         The spacing to be used for calculating the potential
 
     """
-    sample_dists = np.array([dist - h, dist, dist + h])
-    potentials = grav_potential(sample_dists)
+    # use only the actual data on either side of the interpolated point
+    sample_dists = np.array([np.max(Mdist[Mdist < dist].value),
+                             dist.value,
+                             np.min(Mdist[Mdist > dist].value)])
+    potentials = grav_potential(sample_dists).value
     grads = np.gradient(potentials, sample_dists)
-    return grads[1]
+    return grads[1] * u.pc / (u.yr**2)
 
 
 def rot_mat(aop, loan, inc):
@@ -163,7 +134,7 @@ def rot_mat(aop, loan, inc):
     return T
 
 
-def orbit(r_per, r_ap, tstep, ttot):
+def orbit(r_per, r_ap, tstep):
     """Generates orbits.
 
     Takes in a peri/apoapsis and generates an integrated orbit around SgrA*.
@@ -172,64 +143,63 @@ def orbit(r_per, r_ap, tstep, ttot):
     x0 = [pc], v0 = [km/s], tstep = [yr]
     """
     # pylint: disable=E1101
-#    npoints = int(ttot / tstep)
-#    pos = np.zeros((npoints, 3))
-#    vel = np.zeros_like(pos)
-#
-#    x0 = np.array([r_per, 0., 0.]) * u.pc
-#    v_per = np.sqrt((2. * G * mass_func(r_per) * r_ap)
-#                    / (r_per * (r_per + r_ap)))
-#    v0 = np.array([0., v_per, 0.]) * u.pc / u.yr
-#
-#    pos[0] = x0.value  # [pc]
-#    vel[0] = v0.value  # [pc/yr]
-#
-#    posnorm = np.linalg.norm(pos[0])  # [pc]
-#    a_old = - G * mass_func(posnorm) / posnorm**2  # [pc/yr^2]
-#    a_old = a_old * pos[0] / posnorm
-#
-#    for i in range(npoints - 1):
-#        pos[i+1] = pos[i] + vel[i] * tstep + 0.5 * a_old * tstep**2
-#
-#        posnorm = np.linalg.norm(pos[i+1])
-#        a_new = - G * mass_func(posnorm) / posnorm**2
-#        a_new = a_new * pos[i+1] / posnorm
-#
-#        vel[i+1] = vel[i] + 0.5 * (a_old + a_new) * tstep
-#
-#        a_old = a_new
-#
-#    return pos, (vel * u.pc / u.yr).to(u.km / u.s).value  # [pc], [km/s]
     # sticking to 2D polar for initial integration since z = 0
-    r_pos = np.array([r_per])
-    r_vel = np.array([0.])
+    r_per *= u.pc
+    r_ap *= u.pc
+    r_pos = np.array([r_per.value]) * u.pc
+    r_vel = np.array([0.]) * u.pc / u.yr
 
-    ang_pos = np.array([0.])
-    ang_v0 = (r_ap / r_per) * np.sqrt((2 * G / ((r_per ** 2) - (r_ap ** 2)))
-                                      * ((mass_func(r_per) / r_per)
-                                      - (mass_func(r_ap) / r_ap)))
-    ang_vel = np.array([ang_v0])
+    ang_pos = np.array([0.]) * u.rad
+    print("G = {0}". format(G))
+    print("r_per = {0}". format(r_per))
+    print("r_ap = {0}". format(r_ap))
+    print("mass_func_per = {0}".format(mass_func(r_per)))
+    print("mass_func_ap = {0}".format(mass_func(r_ap)))
+
+    if (r_per == r_ap):
+        ang_v0 = np.sqrt(G * mass_func(r_per) / r_per**3)
+    else:
+        ang_v0 = (r_ap / r_per) * np.sqrt((2 * G
+                                          / ((r_per ** 2) - (r_ap ** 2)))
+                                          * ((mass_func(r_per) / r_per)
+                                          - (mass_func(r_ap) / r_ap)))
+
+    ang_v0 *= u.rad
+    print("angular v0 = {0}".format(ang_v0))
+    ang_vel = np.array([ang_v0.value]) * u.rad / u.yr
 
     l_cons = ang_v0 * (r_per ** 2)  # angular momentum per unit mass
-    while ang_pos[-1] < 2 * np.pi:
-        # radial portion first
-        r_half = r_pos[-1] + 0.5 * h * r_vel[-1]  # first kick
-        r_vel_new = r_vel[-1] - h * 8  # drift  # TODO: teach me how to gradie(nt)
-        r_new = r_half + 0.5 * h * r_vel_new  # second kick
-        r_pos = np.append(r_pos, r_new)
-
-        # then radial
+    print("l_cons = {0}".format(l_cons))
+    while ang_pos[-1] < 2 * np.pi * u.rad:
+        r_half = r_pos[-1] + 0.5 * h * r_vel[-1]  # first drift
         ang_half = ang_pos[-1] + 0.5 * h * ang_vel[-1]
+
+        r_vel_new = r_vel[-1] + h * (r_half * ang_vel_new ** 2
+                                     - potential_grad(r_half))  # kick
         ang_vel_new = l_cons / (r_new ** 2)
+        print(r_vel_new)
+
+        r_new = r_half + 0.5 * h * r_vel_new  # second drift
         ang_new = ang_half + 0.5 * h * ang_vel_new
-        ang_pos = np.append(ang_pos, ang_new)
+
+        r_pos = np.append(r_pos.value, r_new.value) * u.pc
+        r_vel = np.append(r_vel.value, r_vel_new.value) * u.pc / u.yr
+        ang_pos = np.append(ang_pos.value, ang_new.value) * u.rad
+        ang_vel = np.append(ang_vel.value, ang_vel_new.value) * u.rad / u.yr
+
+    print("r_pos = {0}".format(r_pos))
+    print("r_vel = {0}".format(r_vel))
+    print("ang_pos = {0}".format(ang_pos))
+    print("ang_vel = {0}".format(ang_vel))
 
     pos = np.array([r_pos * np.cos(ang_pos),
                     r_pos * np.sin(ang_pos),
                     [0.] * len(r_pos)])
 
-    vel = np.array([r_vel * np.cos(ang_pos) - r_pos * ang_vel * np.sin(ang_pos),
-                    r_vel * np.sin(ang_pos) + r_pos * ang_vel * np.cos(ang_pos),
+    vel = np.array([r_vel * np.cos(ang_pos)
+                    - r_pos * ang_vel * np.sin(ang_pos),
+                    r_vel * np.sin(ang_pos)
+                    + r_pos * ang_vel * np.cos(ang_pos),
                     [0.] * len(r_vel)])
 
     return pos, vel
@@ -250,7 +220,7 @@ def sky(p):
 
     rot = rot_mat(aop, loan, inc)
 
-    orb_r, orb_v = orbit(r_per, r_ap, tstep, ttot)
+    orb_r, orb_v = orbit(r_per, r_ap, h)
 
     # Rotate reference frame
     # We can use the transpose of the rotation matrix instead of the inverse
@@ -279,7 +249,7 @@ def model(p):
 
 
 def plot_func(p):
-    orb_r, orb_v = orbit(p[-2], p[-1], tstep, ttot)
+    orb_r, orb_v = orbit(p[-2], p[-1], h)
     sky_xyv = model(p)
 
     plt.figure(1)
