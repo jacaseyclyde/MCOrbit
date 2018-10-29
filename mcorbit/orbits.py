@@ -48,7 +48,7 @@ Menc = 10**Mdat[:, 1] * u.Msun
 
 h = 500 * u.yr  # timestep
 
-G = G.to((u.pc**3) / (u.Msun * u.yr**2))
+G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
 
 
 def mass_func(dist):
@@ -103,9 +103,10 @@ def potential_grad(dist):
     sample_dists = np.array([np.max(Mdist[Mdist < dist].value),
                              dist.value,
                              np.min(Mdist[Mdist > dist].value)])
-    potentials = grav_potential(sample_dists).value
-    grads = np.gradient(potentials, sample_dists)
-    return grads[1] * u.pc / (u.yr**2)
+
+    # treating dM/dr as negligible at any given point
+    return (- grav_potential(sample_dists).value / dist
+            * u.pc ** 2 / (u.yr ** 2))
 
 
 def rot_mat(aop, loan, inc):
@@ -150,11 +151,6 @@ def orbit(r_per, r_ap, tstep):
     r_vel = np.array([0.]) * u.pc / u.yr
 
     ang_pos = np.array([0.]) * u.rad
-    print("G = {0}". format(G))
-    print("r_per = {0}". format(r_per))
-    print("r_ap = {0}". format(r_ap))
-    print("mass_func_per = {0}".format(mass_func(r_per)))
-    print("mass_func_ap = {0}".format(mass_func(r_ap)))
 
     if (r_per == r_ap):
         ang_v0 = np.sqrt(G * mass_func(r_per) / r_per**3)
@@ -165,41 +161,33 @@ def orbit(r_per, r_ap, tstep):
                                           - (mass_func(r_ap) / r_ap)))
 
     ang_v0 *= u.rad
-    print("angular v0 = {0}".format(ang_v0))
     ang_vel = np.array([ang_v0.value]) * u.rad / u.yr
 
     l_cons = ang_v0 * (r_per ** 2)  # angular momentum per unit mass
-    print("l_cons = {0}".format(l_cons))
     while ang_pos[-1] < 2 * np.pi * u.rad:
+        # radial portion first
         r_half = r_pos[-1] + 0.5 * h * r_vel[-1]  # first drift
-        ang_half = ang_pos[-1] + 0.5 * h * ang_vel[-1]
-
-        r_vel_new = r_vel[-1] + h * (r_half * ang_vel_new ** 2
+        r_vel_new = r_vel[-1] + h * ((l_cons ** 2 / u.rad ** 2) / r_half ** 3
                                      - potential_grad(r_half))  # kick
-        ang_vel_new = l_cons / (r_new ** 2)
-        print(r_vel_new)
-
         r_new = r_half + 0.5 * h * r_vel_new  # second drift
-        ang_new = ang_half + 0.5 * h * ang_vel_new
-
         r_pos = np.append(r_pos.value, r_new.value) * u.pc
         r_vel = np.append(r_vel.value, r_vel_new.value) * u.pc / u.yr
+
+        # then radial
+        ang_half = ang_pos[-1] + 0.5 * h * ang_vel[-1]
+        ang_vel_new = l_cons / (r_new ** 2)
+        ang_new = ang_half + 0.5 * h * ang_vel_new
         ang_pos = np.append(ang_pos.value, ang_new.value) * u.rad
         ang_vel = np.append(ang_vel.value, ang_vel_new.value) * u.rad / u.yr
-
-    print("r_pos = {0}".format(r_pos))
-    print("r_vel = {0}".format(r_vel))
-    print("ang_pos = {0}".format(ang_pos))
-    print("ang_vel = {0}".format(ang_vel))
 
     pos = np.array([r_pos * np.cos(ang_pos),
                     r_pos * np.sin(ang_pos),
                     [0.] * len(r_pos)])
 
     vel = np.array([r_vel * np.cos(ang_pos)
-                    - r_pos * ang_vel * np.sin(ang_pos),
+                    - r_pos * ang_vel * np.sin(ang_pos) / u.rad,
                     r_vel * np.sin(ang_pos)
-                    + r_pos * ang_vel * np.cos(ang_pos),
+                    + r_pos * ang_vel * np.cos(ang_pos) / u.rad,
                     [0.] * len(r_vel)])
 
     return pos, vel
@@ -277,3 +265,7 @@ def plot_func(p):
     plt.savefig(outpath + 'orbitplane.pdf', bbox_inches='tight')
     plt.legend()
     plt.show()
+
+
+if __name__ == '__main__':
+    orbit(1., 1., 500 * u.yr)
