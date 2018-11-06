@@ -29,6 +29,8 @@ warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 
 import numpy as np  # noqa
 
+from scipy.stats import multivariate_normal
+
 from . import orbits  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
@@ -72,8 +74,8 @@ class Model(object):
     def __init__(self, data, space):
         self.data = data
         self.space = space
-        cov = np.cov(self.data.T)
-        self.inv_cov = np.linalg.inv(cov)
+        self.cov = np.cov(self.data.T)
+        self.inv_cov = np.linalg.inv(self.cov)
 
     def point_point_prob(self, data_pt, model_pt):
         """Calculates the probability for one point to generate another.
@@ -98,7 +100,7 @@ class Model(object):
         """
         dist = data_pt - model_pt
 
-        prob = np.exp(-0.5 * np.matmul(dist, np.matmul(self.inv_cov, dist)))
+        prob = multivariate_normal.pdf(dist, cov=self.cov)
 
         if np.isnan(prob):
             prob = 0.0

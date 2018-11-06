@@ -5,12 +5,9 @@ Created on Wed Aug 22 13:32:12 2018
 
 @author: jacaseyclyde
 """
-# pylint: disable=C0413
-import pytest
-
 import numpy as np
 
-import mcorbit
+from mcorbit import model
 
 
 class TestPointPointProbability(object):
@@ -18,13 +15,13 @@ class TestPointPointProbability(object):
     Test the point to point probability model.
     """
 
-    def setUp(self):
+    def setup_method(self):
         """
         Set up the :obj:`Model` object for testing with a random fake dataset.
         """
-        # The initialization data for this set of tests doesn't matter at all
-        self.model = mcorbit.model.Model(np.random.rand(6, 3),
-                                         np.random.rand(5, 2))
+        self.data = np.array([np.zeros(3)])
+        self.model = np.array([np.zeros(3), np.ones(3)])
+        self.model = model.Model(self.data, self.model)
 
     def test_no_dist(self):
         """
@@ -34,7 +31,7 @@ class TestPointPointProbability(object):
         test_model_pt = np.zeros(3)
 
         prob = self.model.point_point_prob(test_data_pt, test_model_pt)
-        self.assertEqual(prob, 1.)
+        assert prob == 1.
 
     def test_inf_dist(self):
         """
@@ -44,7 +41,7 @@ class TestPointPointProbability(object):
         test_model_pt = np.zeros(3)
 
         prob = self.model.point_point_prob(test_data_pt, test_model_pt)
-        self.assertEqual(prob, 0.)
+        assert prob == 0.
 
     def test_neg_inf_dist(self):
         """
@@ -54,21 +51,21 @@ class TestPointPointProbability(object):
         test_model_pt = np.zeros(3)
 
         prob = self.model.point_point_prob(test_data_pt, test_model_pt)
-        self.assertEqual(prob, 0.)
+        assert prob == 0.
 
 
-class TestPointModelProbability(unittest.TestCase):
+class TestPointModelProbability(object):
     """
     Test the point to orbit model probability model.
     """
 
-    def setUp(self):
+    def setup_method(self):
         """
         Set up the :obj:`Model` object for testing with a random fake dataset.
         """
         # The initialization data for this set of tests doesn't matter at all
-        self.model = mcorbit.model.Model(np.random.rand(6, 3),
-                                         np.random.rand(5, 2))
+        self.model = model.Model(np.random.rand(6, 3),
+                                 np.random.rand(5, 2))
         self.test_model = np.zeros((6, 3))
 
     def test_inf_dist(self):
@@ -78,7 +75,7 @@ class TestPointModelProbability(unittest.TestCase):
         test_data_pt = np.array([np.inf, np.inf, np.inf])
 
         prob = self.model.point_model_prob(test_data_pt, self.test_model)
-        self.assertEqual(prob, 0.)
+        assert prob == 0.
 
     def test_neg_inf_dist(self):
         """
@@ -87,7 +84,7 @@ class TestPointModelProbability(unittest.TestCase):
         test_data_pt = np.array([-np.inf, -np.inf, -np.inf])
 
         prob = self.model.point_model_prob(test_data_pt, self.test_model)
-        self.assertEqual(prob, 0.)
+        assert prob == 0.
 
     def test_no_dist(self):
         """
@@ -96,7 +93,7 @@ class TestPointModelProbability(unittest.TestCase):
         test_data_pt = np.array([0., 0., 0.])
 
         prob = self.model.point_model_prob(test_data_pt, self.test_model)
-        self.assertEqual(prob, 1.)
+        assert prob == 1.
 
     def test_inf_model(self):
         test_data_pt = np.array([0., 0., 0.])
@@ -112,15 +109,15 @@ class TestPointModelProbability(unittest.TestCase):
                                [-np.inf, -np.inf, -np.inf]])
 
         prob = self.model.point_model_prob(test_data_pt, test_model)
-        self.assertEqual(prob, (1. / test_model.shape[0]))
+        assert prob == (1. / test_model.shape[0])
 
 
-class TestLnPrior(unittest.TestCase):
+class TestLnPrior(object):
     """
     Test the natural log of the prior distribution
     """
 
-    def setUp(self):
+    def setup_method(self):
         # The initialization data for this set of tests doesn't matter at all
         pspace = np.array([[-1., 1.],
                            [-1., 1.],
@@ -128,19 +125,19 @@ class TestLnPrior(unittest.TestCase):
                            [-1., 1.],
                            [-1., 1.]])
 
-        self.model = mcorbit.model.Model(np.random.rand(6, 3), pspace)
+        self.model = model.Model(np.random.rand(6, 3), pspace)
 
     def test_all_bound(self):
         params = np.random.rand(5)
         ln_prior = self.model.ln_prior(params)
 
-        self.assertEqual(ln_prior, np.log(2**(-5)))
+        assert ln_prior == np.log(2**(-5))
 
     def test_all_unbound(self):
         params = np.random.rand(5) + 1
         ln_prior = self.model.ln_prior(params)
 
-        self.assertEqual(ln_prior, -np.inf)
+        assert ln_prior == -np.inf
 
     def test_mix_bound_unbound(self):
         params = np.random.rand(5)
@@ -148,27 +145,23 @@ class TestLnPrior(unittest.TestCase):
         params[2] += 1
         ln_prior = self.model.ln_prior(params)
 
-        self.assertEqual(ln_prior, -np.inf)
+        assert ln_prior == -np.inf
 
 
-class TestLnLike(unittest.TestCase):
-    """
-    Test the natural log of our pdf
-    """
-
-    def test_inf_dist_data(self):
-        test_data = np.array(5 * [3 * [np.inf]])
-        pspace = np.array([[0., 1.],
-                           [0., 1.],
-                           [0., 1.],
-                           [0., 1.],
-                           [0., 1.]])
-
-        self.model = mcorbit.model.Model(test_data, pspace)
-        ln_prob = self.model.ln_like(np.random.rand(5))
-
-        self.assertEqual(ln_prob, -np.inf)
-
-
-if __name__ == '__main__':
-    unittest.main()
+#class TestLnLike(object):
+#    """
+#    Test the natural log of our pdf
+#    """
+#
+#    def test_inf_dist_data(self):
+#        test_data = np.array(5 * [3 * [np.inf]])
+#        pspace = np.array([[0., 1.],
+#                           [0., 1.],
+#                           [0., 1.],
+#                           [0., 1.],
+#                           [0., 1.]])
+#
+#        self.model = model.Model(test_data, pspace)
+#        ln_prob = self.model.ln_like(np.random.rand(5))
+#
+#        assert ln_prob == -np.inf
