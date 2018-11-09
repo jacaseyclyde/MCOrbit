@@ -52,10 +52,6 @@ class TestGradient(object):
 
 
 class TestAngularMomentum(object):
-    def test_order(self):
-        assert (orbits.angular_momentum(1., 1.5)
-                == orbits.angular_momentum(1.5, 1.))
-
     def test_units(self):
         assert orbits.angular_momentum(1., 1.5).unit == (u.pc ** 2) / u.yr
 
@@ -65,7 +61,14 @@ class TestAngularMomentum(object):
         assert (l_mom ** 2) / (r_test ** 3) == orbits.potential_grad(r_test)
 
 
-def test_orbit_circle():
-    r_test = 1.5
-    r_pos, r_vel, ang_pos, ang_vel = orbits.orbit(r_test, r_test, 500 * u.yr)
-    assert all(r_pos.value == r_test)
+class TestOrbit(object):
+    def test_circle(self):
+        r1 = 1.5
+        r_pos, r_vel, ang_pos, ang_vel = orbits.orbit(r1, r1, 500 * u.yr)
+        assert all(r_pos.value == r1)
+
+    def test_ellipse(self):
+        r1 = np.float128(1.) + 1.5 * np.random.rand()
+        r2 = r1 + 1.5 * np.random.rand()
+        r_pos, r_vel, ang_pos, ang_vel = orbits.orbit(r1, r2, 500 * u.yr)
+        assert all(r_pos.value >= r1) and all(r_pos.value <= r2)

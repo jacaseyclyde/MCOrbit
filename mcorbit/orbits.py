@@ -31,6 +31,8 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
+from scipy.interpolate import interp1d
+
 import astropy.units as u
 from astropy.constants import G
 from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
@@ -44,13 +46,14 @@ Mdat = np.genfromtxt(os.path.join(os.path.dirname(__file__),
                                   '../dat/enclosed_mass_distribution.txt'))
 Mdist = Angle(Mdat[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
 Menc = 10 ** Mdat[:, 1] * u.Msun
+Mgrad = np.gradient(Menc.value, Mdist.value) * u.Msun / u.pc
 
 h = 500 * u.yr  # timestep
 
 G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
 
 
-def mass_func(dist):
+def mass(dist):
     """Finds the interpolated central mass of a spherical distribution.
 
     Calculates the mass contained in a sperical distribution at a given
@@ -79,7 +82,7 @@ def mass_func(dist):
         # Assume units in pc if no units given
         dist = dist * u.pc
 
-    return np.interp(dist, Mdist, Menc) * u.Msun
+    return (interp1d(Mdist, Menc, kind='cubic'))(dist) * u.Msun
 
 
 def potential(dist):
@@ -112,10 +115,10 @@ def potential(dist):
         dist = dist * u.pc
 
     with warnings.catch_warnings(record=True):
-        return - G * mass_func(dist) / dist
+        return - G * mass(dist) / dist
 
 
-def mass_grad(dist, dr=0.0005):
+def mass_grad(dist):
     """Automates calculation of the mass gradient.
 
     Wrapper function to evaluate the derivative of the non-analytic
@@ -136,20 +139,20 @@ def mass_grad(dist, dr=0.0005):
         The estimated rate of change of the mass over the distance.
 
     """
-    sample_dists = np.array([dist.value - dr,
-                             dist.value,
-                             dist.value + dr]) * u.pc
+    try:
+        if (dist.unit != u.pc):
+            try:
+                dist = dist.to(u.pc)
+            except u.UnitConversionError as e:
+                raise e
+    except AttributeError as e:
+        # Assume units in pc if no units given
+        dist = dist * u.pc
 
-    with warnings.catch_warnings(record=True):
-        grad = np.gradient(mass_func(sample_dists.value).value,
-                           sample_dists.value)
-
-    grad[np.isnan(grad)] = 0
-
-    return grad[1] * u.Msun / u.pc
+    return (interp1d(Mdist, Mgrad, kind='cubic'))(dist) * u.Msun / u.pc
 
 
-def potential_grad(dist, dr=0.0005):
+def potential_grad(dist):
     """Calculates the gradient of the potential at a point.
 
     Calculates the approximate gradient of the gravitational potential
@@ -159,9 +162,6 @@ def potential_grad(dist, dr=0.0005):
     ----------
     dist : float
         The distance from Sgr A* at which to calculate the potential.
-    dr : float, optional (default=0.001)
-        The step size to use for gradient evaluation. Default size is
-        the rough spacing (in pc) of our mass data.
 
     Returns
     -------
@@ -169,9 +169,13 @@ def potential_grad(dist, dr=0.0005):
         The potential gradient at the given distance in units of
         pc / yr^2
 
+    Todo
+    ----
+    - Figure out is potential gradient is too high
+
     """
     if (dist == 0):
-        return np.inf
+        return np.inf * u.pc / (u.yr ** 2)
 
     return -1 * (potential(dist) / dist) - G * mass_grad(dist) / dist
 
@@ -195,6 +199,10 @@ def angular_momentum(r1, r2):
     -------
     float
         Angular momentum per unit mass, in units of pc^2 / yr
+
+    Todo
+    ----
+    - Figure out what's wrong with this calculation (too small initially)
 
     """
     try:
@@ -220,44 +228,73 @@ def angular_momentum(r1, r2):
     if (r1 == r2):
         return r1 * np.sqrt(-1 * potential(r1) - G * mass_grad(r1))
 
+    E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
+         / ((r2 ** 2) - (r1 ** 2)))
+
+    return r1 * np.sqrt(2 * (E - potential(r1)))
+
+
+def orbit(r1, r2, tstep):
+    """Generates orbits.
+
+    Orbit generator that integrates orbits around Sgr A*. Integrated
+    orbits are necessary due to the presence of a distributed central
+    mass function. The mass distribution is assumed to be spherical.
+
+    Parameters
+    ----------
+    r1 : float
+        The first apside. May be either periapsis or apoapsis. Units of
+        parsecs.
+    r2 : float
+        The second apside. May be either periapsis or apoapsis. Units
+        of parsecs.
+    tstep : float
+        The timestep to use, in years.
+
+    Returns
+    -------
+    r_pos : :obj:`numpy.ndarray`
+        The radial position at each timestep. Covers one angular
+        period.
+    r_vel : :obj:`numpy.ndarray`
+        The radial velocity at each timestep. Covers one angular
+        period.
+    ang_pos : :obj:`numpy.ndarray`
+        The angular position at each timestep. Covers one angular
+        period.
+    ang_vel : :obj:`numpy.ndarray`
+        The angular velocity at each timestep. Covers one angular
+        period.
+
+    x0 = [pc], v0 = [km/s], tstep = [yr]
+    """
+    # pylint: disable=E1101
     # force the order of apsides such that r1 = periapsis
     if (r1 > r2):
         tmp = r1
         r1 = r2
         r2 = tmp
 
-    return r1 * r2 * np.sqrt(2 * (potential(r2) - potential(r1))
-                             / ((r2 ** 2) - (r1 ** 2)))
-
-
-def orbit(r_per, r_ap, tstep):
-    """Generates orbits.
-
-    Takes in a peri/apoapsis and generates an integrated orbit around SgrA*.
-    Returns 2 arrays of position and velocity vectors.
-
-    x0 = [pc], v0 = [km/s], tstep = [yr]
-    """
-    # pylint: disable=E1101
     # sticking to 2D polar for initial integration since z = 0
     # TODO: Check if the issue in the integrated orbit is due to the
     # radial integrator
-    r_per *= u.pc
-    r_ap *= u.pc
-    r_pos = np.array([r_per.value]) * u.pc
+    r1 *= u.pc
+    r2 *= u.pc
+    r_pos = np.array([r1.value]) * u.pc
     r_vel = np.array([0.]) * u.pc / u.yr
 
     ang_pos = np.array([0.]) * u.rad
 
-    l_cons = angular_momentum(r_per, r_ap)
+    l_cons = angular_momentum(r1, r2)
 
-    ang_v0 = l_cons / (r_per ** 2) * u.rad
+    ang_v0 = l_cons / (r1 ** 2) * u.rad
     ang_vel = np.array([ang_v0.value]) * u.rad / u.yr
 
     while ang_pos[-1] < 2 * np.pi * u.rad:
         # radial portion first
         r_half = r_pos[-1] + 0.5 * h * r_vel[-1]  # first drift
-        r_vel_new = r_vel[-1] + h * ((l_cons ** 2) / (r_half ** 3)
+        r_vel_new = r_vel[-1] + h * (((l_cons ** 2) / (r_half ** 3))
                                      - potential_grad(r_half))  # kick
         r_new = r_half + 0.5 * h * r_vel_new  # second drift
         r_pos = np.append(r_pos.value, r_new.value) * u.pc
@@ -269,6 +306,9 @@ def orbit(r_per, r_ap, tstep):
         ang_new = ang_half + 0.5 * h * ang_vel_new
         ang_pos = np.append(ang_pos.value, ang_new.value) * u.rad
         ang_vel = np.append(ang_vel.value, ang_vel_new.value) * u.rad / u.yr
+
+        if (r_pos[-1] > 5 * r2):
+            break
 
     return r_pos, r_vel, ang_pos, ang_vel
 
@@ -388,12 +428,121 @@ def plot_func(p):
 
 
 if __name__ == '__main__':
-    r_pos, r_vel, ang_pos, ang_vel = orbit(1.5, 3., 100 * u.yr)
+    # generate orbit
+    figsize = (6, 6)
+    r1 = np.float128(1.5)
+    r2 = np.float128(3.)
+    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2, 100)
     pos, vel = polar_to_cartesian(r_pos, r_vel, ang_pos, ang_vel)
+
+    l_cons = angular_momentum(r1, r2)
+    potential_r = [potential(r).value for r in r_pos]
+    potential_grad_r = [-1 * potential_grad(r).value for r in r_pos]
+
+    mass_r = [mass(r).value for r in r_pos]
+    mass_grad_r = [mass_grad(r).value for r in r_pos]
+
+    V_l = ((l_cons ** 2) / (2 * r_pos ** 2)).value
+    V_eff = V_l + potential_r
+
+    a_l = ((l_cons ** 2) / (r_pos ** 3)).value
+    a = a_l + potential_grad_r
+
+    plt.figure(figsize=figsize)
     plt.plot(pos[0], pos[1])
     plt.grid()
+    plt.title("Orbit")
+    plt.xlabel("$x$")
+    plt.ylabel("$y$")
     plt.show()
-    plt.plot(vel[0], vel[1])
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, r_vel)
+    plt.title("$v_{r}$ vs. $r$")
+    plt.xlabel("$r$")
+    plt.ylabel("$v_{r}$")
     plt.grid()
     plt.show()
-    print(np.max(r_pos), np.min(r_pos), np.max(np.abs(r_vel)))
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, a, '-k', label="$a_{r}$")
+#    plt.plot(r_pos, a_l, '--b', label="$a_{l}$", alpha=0.7)
+#    plt.plot(r_pos, potential_grad_r, '--r', label="$-\\nabla\\Phi_{r}$",
+#             alpha=0.7)
+    plt.title("$a$ vs. $r$")
+    plt.xlabel("$r$")
+    plt.ylabel("$a$")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, V_eff, '-k', label="$V_{eff}$")
+#    plt.plot(r_pos, V_l, '--b', label="$V_{l}$", alpha=0.7)
+#    plt.plot(r_pos, potential_r, '--r', label="$\\Phi_{r}$", alpha=0.7)
+    plt.title("$V$ vs. $r$")
+    plt.xlabel("$r$")
+    plt.ylabel("$V$")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos)
+    plt.title("$r_{pos}$ vs $n_{i}$")
+    plt.xlabel("$n_{i}$")
+    plt.ylabel("$r_{pos}$")
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_vel)
+    plt.title("$r_{vel}$ vs $n_{i}$")
+    plt.xlabel("$n_{i}$")
+    plt.ylabel("$r_{vel}$")
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=figsize)
+    plt.plot(a, '-k', label="$a_{r}$")
+#    plt.plot(r_pos, a_l, '--b', label="$a_{l}$", alpha=0.7)
+#    plt.plot(r_pos, potential_grad_r, '--r', label="$-\\nabla\\Phi_{r}$",
+#             alpha=0.7)
+    plt.title("$a$ vs. $n_{i}$")
+    plt.xlabel("$n_{i}$")
+    plt.ylabel("$a$")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=figsize)
+    plt.plot(V_eff, '-k', label="$V_{eff}$")
+#    plt.plot(r_pos, V_l, '--b', label="$V_{l}$", alpha=0.7)
+#    plt.plot(r_pos, potential_r, '--r', label="$\\Phi_{r}$", alpha=0.7)
+    plt.title("$V$ vs. $n_{i}$")
+    plt.xlabel("$n_{i}$")
+    plt.ylabel("$V$")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+#    plt.figure(figsize=(12, 12))
+#    plt.plot(r_pos, mass_r)
+#    plt.title("$M_{r}$ vs. $r$")
+#    plt.xlabel("$r$")
+#    plt.ylabel("$M_{r}$")
+#    plt.grid()
+#    plt.show()
+#
+#    plt.figure(figsize=(12, 12))
+#    plt.plot(r_pos, mass_grad_r)
+#    plt.title("$\\nabla M_{r}$ vs. $r$")
+#    plt.xlabel("$r$")
+#    plt.ylabel("$\\nabla M_{r}$")
+#    plt.grid()
+#    plt.show()
+
+    print("r_1 = {0:.4f}".format(r1))
+    print("r_2 = {0:.4f}".format(r2))
+    print("r_max = {0:.4f}".format(np.max(r_pos)))
+    print("r_min = {0:.4f}".format(np.min(r_pos)))
