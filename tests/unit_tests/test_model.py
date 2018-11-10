@@ -19,8 +19,8 @@ class TestPointPointProbability(object):
         """
         Set up the :obj:`Model` object for testing with a random fake dataset.
         """
-        self.data = np.array([np.zeros(3)])
-        self.model = np.array([np.zeros(3), np.ones(3)])
+        self.data = np.random.rand(10, 3)
+        self.model = 10 *  np.zeros(5)
         self.model = model.Model(self.data, self.model)
 
     def test_no_dist(self):

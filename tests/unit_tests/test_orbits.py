@@ -52,6 +52,15 @@ class TestGradient(object):
 
 
 class TestAngularMomentum(object):
+    def test_bounds(self):
+        r1 = 1. + np.random.rand()
+        r2 = r1 + 4. * np.random.rand()
+        l_cons = orbits.angular_momentum(r1, r2).value
+        lower_bound = ((r1 ** 3) * orbits.potential_grad(r1)).value
+        upper_bound = ((r2 ** 3) * orbits.potential_grad(r2)).value
+        assert (((l_cons ** 2) >= lower_bound)
+                and ((l_cons ** 2) <= upper_bound))
+
     def test_units(self):
         assert orbits.angular_momentum(1., 1.5).unit == (u.pc ** 2) / u.yr
 
