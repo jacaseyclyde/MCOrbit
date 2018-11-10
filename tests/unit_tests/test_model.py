@@ -10,51 +10,27 @@ import numpy as np
 from mcorbit import model
 
 
-class TestPointPointProbability(object):
+class TestModelPointProbability(object):
     """
     Test the point to point probability model.
     """
-
     def setup_method(self):
-        """
-        Set up the :obj:`Model` object for testing with a random fake dataset.
-        """
         self.data = np.random.rand(10, 3)
-        self.model = 10 *  np.zeros(5)
-        self.model = model.Model(self.data, self.model)
-
-    def test_no_dist(self):
-        """
-        Tests the probability for a datapoint on top of the model point
-        """
-        test_data_pt = np.zeros(3)
-        test_model_pt = np.zeros(3)
-
-        prob = self.model.point_point_prob(test_data_pt, test_model_pt)
-        assert prob == 1.
+        self.model = model.Model(self.data, np.random.rand(5))
 
     def test_inf_dist(self):
-        """
-        Tests the probability for a datapoint infinitely far from the model
-        """
-        test_data_pt = np.array([np.inf, np.inf, np.inf])
-        test_model_pt = np.zeros(3)
-
-        prob = self.model.point_point_prob(test_data_pt, test_model_pt)
-        assert prob == 0.
+        assert all(self.model.model_pt_prob(np.array(3 * [np.inf])) == 0.)
 
     def test_neg_inf_dist(self):
-        """
-        Tests the probability for a datapoint at a distance -inf from the model
-        """
-        test_data_pt = np.array([-np.inf, -np.inf, -np.inf])
-        test_model_pt = np.zeros(3)
+        assert all(self.model.model_pt_prob(np.array(3 * [-np.inf])) == 0.)
 
-        prob = self.model.point_point_prob(test_data_pt, test_model_pt)
-        assert prob == 0.
+    def test_zero_dist(self):
+        idx = np.random.randint(len(self.data))
+        probs = self.model.model_pt_prob(self.data[idx])
+        assert probs[idx] == np.max(probs)
 
 
-class TestPointModelProbability(object):
+class TestModelProbability(object):
     """
     Test the point to orbit model probability model.
     """
@@ -64,52 +40,67 @@ class TestPointModelProbability(object):
         Set up the :obj:`Model` object for testing with a random fake dataset.
         """
         # The initialization data for this set of tests doesn't matter at all
-        self.model = model.Model(np.random.rand(6, 3),
-                                 np.random.rand(5, 2))
-        self.test_model = np.zeros((6, 3))
+        self.data = np.random.rand(10, 3)
+        self.model = model.Model(self.data, np.random.rand(5))
 
     def test_inf_dist(self):
         """
         Tests the posterior probability for a datapoint at infinity in all axes
         """
-        test_data_pt = np.array([np.inf, np.inf, np.inf])
-
-        prob = self.model.point_model_prob(test_data_pt, self.test_model)
-        assert prob == 0.
+        model = np.array(10 * [np.array(3 * [np.inf])])
+        prob = self.model.model_prob(model)
+        assert all(prob == 0.)
 
     def test_neg_inf_dist(self):
         """
         Tests the posterior probability for a datapoint at -inf in all axes
         """
-        test_data_pt = np.array([-np.inf, -np.inf, -np.inf])
-
-        prob = self.model.point_model_prob(test_data_pt, self.test_model)
-        assert prob == 0.
+        model = np.array(10 * [np.array(3 * [-np.inf])])
+        prob = self.model.model_prob(model)
+        assert all(prob == 0.)
 
     def test_no_dist(self):
         """
         Tests the posterior probability for a datapoint on the model
         """
-        test_data_pt = np.array([0., 0., 0.])
+        data_prob = self.model.model_prob(self.data)
+        perturb_prob = self.model.model_prob(self.data + np.random.normal(0))
+        assert all(data_prob >= perturb_prob)
 
-        prob = self.model.point_model_prob(test_data_pt, self.test_model)
-        assert prob == 1.
 
-    def test_inf_model(self):
-        test_data_pt = np.array([0., 0., 0.])
+class TestLnLike(object):
+    """
+    Test the natural log of the likelihood function
+    """
+    def setup_method(self):
+        """
+        Set up the :obj:`Model` object for testing with a random fake dataset.
+        """
+        # The initialization data for this set of tests doesn't matter at all
+        self.data = np.random.rand(10, 3)
+        self.model = model.Model(self.data, np.random.rand(5))
 
-        test_model = np.array([[0., 0., 0.],
-                               [np.inf, np.inf, np.inf],
-                               [-np.inf, np.inf, np.inf],
-                               [np.inf, -np.inf, np.inf],
-                               [np.inf, np.inf, -np.inf],
-                               [np.inf, -np.inf, -np.inf],
-                               [-np.inf, np.inf, -np.inf],
-                               [-np.inf, -np.inf, np.inf],
-                               [-np.inf, -np.inf, -np.inf]])
+    def test_inf_dist(self):
+        """
+        Tests the posterior probability for a datapoint at infinity in all axes
+        """
+        model = np.array(10 * [np.array(3 * [np.inf])])
+        assert self.model.ln_like(model) == -np.inf
 
-        prob = self.model.point_model_prob(test_data_pt, test_model)
-        assert prob == (1. / test_model.shape[0])
+    def test_neg_inf_dist(self):
+        """
+        Tests the posterior probability for a datapoint at -inf in all axes
+        """
+        model = np.array(10 * [np.array(3 * [-np.inf])])
+        assert self.model.ln_like(model) == -np.inf
+
+    def test_no_dist(self):
+        """
+        Tests the posterior probability for a datapoint on the model
+        """
+        data_prob = self.model.ln_like(self.data)
+        perturb_prob = self.model.ln_like(self.data + np.random.normal(0))
+        assert data_prob >= perturb_prob
 
 
 class TestLnPrior(object):
