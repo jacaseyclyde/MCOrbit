@@ -25,6 +25,7 @@ additionally functions built to rotate the integrated orbits into the
 FK5 coordinate system for comparison to radio data.
 
 """
+# pylint: disable=E0611, E1101
 import os
 import warnings
 
@@ -521,14 +522,14 @@ def model(theta):
 
     """
     aop, loan, inc, r_per, r_ap = theta
-    pos, vel = polar_to_cartesian(orbit(r_per, r_ap))
+    pos, vel = polar_to_cartesian(*orbit(r_per, r_ap))
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
     return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
 
 
 def plot_orbit(r1, r2):
-    pos, vel = polar_to_cartesian(*orbit(r1, r2, 500))
+    pos, vel = polar_to_cartesian(*orbit(r1, r2))
 
     plt.figure(figsize=figsize)
     plt.plot(pos[0, :], pos[1, :], 'b-', label="Gas Core")
@@ -570,16 +571,18 @@ def plot_mass(r1, r2):
 
 
 def plot_mass_grad(r1, r2):
-    """Plot the mass.
+    """Plot the mass gradient.
 
-    Plot the central mass function from `r1` to `r2`.
+    Plot the gradient of the central mass function from `r1` to `r2`.
 
     Parameters
     ----------
     r1 : float
-        The minimum distance of the central mass function to plot.
+        The minimum distance of the central mass function gradient to
+        plot.
     r2 : float
-        The maximum distance of the central mass function to plot.
+        The maximum distance of the central mass function gradient to
+        plot.
 
     """
     r_pos = np.linspace(r1, r2, num=100)
@@ -624,16 +627,16 @@ def plot_potential(r1, r2):
 
 
 def plot_potential_grad(r1, r2):
-    """Plot the potential.
+    """Plot the potential gradient.
 
-    Plot the potential from `r1` to `r2`.
+    Plot the potential gradient from `r1` to `r2`.
 
     Parameters
     ----------
     r1 : float
-        The minimum distance of the potential to plot.
+        The minimum distance of the potential gradient to plot.
     r2 : float
-        The maximum distance of the potnetial to plot.
+        The maximum distance of the potnetial gradient to plot.
 
     """
     r_pos = np.linspace(r1, r2, num=100)
@@ -676,16 +679,19 @@ def V_eff(r, l):
 
 
 def plot_V_eff(r1, r2):
-    """Plot the potential.
+    """Plot the effective potential.
 
-    Plot the potential from `r1` to `r2`.
+    Plot the effective potential for a particle whose apsides are at
+    either end of the radial range.
 
     Parameters
     ----------
     r1 : float
-        The minimum distance of the potential to plot.
+        The minimum distance of the potential to plot. Periapsis for
+        test particle.
     r2 : float
-        The maximum distance of the potnetial to plot.
+        The maximum distance of the potnetial to plot. Apoapsis for
+        test particle.
 
     """
     r_pos = np.linspace(r1, r2, num=100)
@@ -702,9 +708,9 @@ def plot_V_eff(r1, r2):
 
 
 def plot_acceleration(r1, r2):
-    """Plot the potential.
+    """Plot the acceleration.
 
-    Plot the potential from `r1` to `r2`.
+    Plot the acceleration from `r1` to `r2`.
 
     Parameters
     ----------
@@ -746,7 +752,7 @@ def plot_velocity(r1, r2):
         The maximum distance of the potnetial to plot.
 
     """
-    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2, 100)
+    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2)
 
     plt.figure(figsize=figsize)
     plt.plot(ang_pos, r_vel)
@@ -825,7 +831,7 @@ if __name__ == '__main__':
 #    ax.set_ylabel('$r_{1}$')
 #    ax.set_zlabel('$V_{eff}$')
 #    plt.title("$V_e$ vs. $r, r_1, r_2 = {0:.3f}$".format(rr2[0, 0, ir2]))
-#    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_Mr_r2.pdf')
+#    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_r_r2.pdf')
 #    plt.savefig(save_path, bbox_inches='tight')
 #    plt.show()
 #
@@ -843,7 +849,7 @@ if __name__ == '__main__':
 
 #    plot_orbit(r1, r2)
 
-    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2, 100)
+    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2)
 
     print("r_1 = {0:.4f}".format(r1))
     print("r_2 = {0:.4f}".format(r2))

@@ -209,12 +209,9 @@ class Model(object):
 
         Parameters
         ----------
-        theta : :obj:`numpy.ndarray`
-            An array of orbital parameters in the form::
-
-                numpy.array([aop, loan, inc, r_per, r_ap])
-
-            which define the orbital model being investigated.
+        theta : (aop, loan, inc, r_per, r_ap)
+            A tuple of orbital parameters which define the orbital
+            model being evaluated.
 
         Returns
         -------
