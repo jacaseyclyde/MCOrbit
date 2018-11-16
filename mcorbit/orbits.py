@@ -69,7 +69,7 @@ TSTEP = 500 * u.yr  # timestep
 G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
 
 
-def mass(dist):
+def mass(dist, interp=M_ENC_INTERP):
     """Finds the interpolated central mass of a spherical distribution.
 
     Calculates the mass contained in a sperical distribution at a given
@@ -101,7 +101,7 @@ def mass(dist):
     if dist == np.inf * u.pc:
         return np.inf * u.Msun
 
-    mass_enc = M_ENC_INTERP(dist)
+    mass_enc = interp(dist)
     return np.power(10, mass_enc) * u.Msun
 
 
@@ -140,7 +140,7 @@ def potential(dist):
         return - G * mass(dist) / dist
 
 
-def mass_grad(dist, data=M_GRAD):
+def mass_grad(dist, interp=M_GRAD_INTERP):
     """Automates calculation of the mass gradient.
 
     Wrapper function to evaluate the derivative of the non-analytic
@@ -174,7 +174,7 @@ def mass_grad(dist, data=M_GRAD):
     if dist == np.inf * u.pc:
         return 0. * u.Msun / u.pc
 
-    m_grad_dist = (M_GRAD_INTERP(dist) * mass(dist) * np.log(10)).value
+    m_grad_dist = (interp(dist) * mass(dist) * np.log(10)).value
     return m_grad_dist * u.Msun / u.pc
 
 
