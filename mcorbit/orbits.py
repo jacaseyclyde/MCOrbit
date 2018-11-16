@@ -41,16 +41,39 @@ from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-outpath = '../out/'
+# =============================================================================
+# =============================================================================
+# # CONSTANTS
+# =============================================================================
+# =============================================================================
 
-# galactic center
-GC = ICRS(ra=Angle('17h45m40.0409s'), dec=Angle('-29:0:28.118 degrees'))
+# =============================================================================
+# User defined constants
+# =============================================================================
+TSTEP = 500 * u.yr  # timestep
+FIGSIZE = (12, 12)
 
+# =============================================================================
+# Referenced constants
+# =============================================================================
+GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
+                  dec=Angle('-29:0:28.118 degrees'))
+
+G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
+
+# =============================================================================
+# Default data
+# =============================================================================
 M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
                                    '../dat/enclosed_mass_distribution.txt'))
 M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
 M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
+
+M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
+                        kind='cubic', fill_value='extrapolate')
+M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
+                         kind='cubic', fill_value='extrapolate')
 
 ## uncomment to use point mass equal to mass enclosed at ~1pc
 #M_ENC = len(M_ENC) * [M_ENC[175]]  # 1pc away from Sgr A*
@@ -60,16 +83,16 @@ M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
 #M_ENC = len(M_ENC) * [M_ENC[240]]  # 5pc away from Sgr A*
 #M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
 
-M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
-                        kind='cubic', fill_value='extrapolate')
-M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
-                         kind='cubic', fill_value='extrapolate')
 
-TSTEP = 500 * u.yr  # timestep
+# =============================================================================
+# =============================================================================
+# # Functions
+# =============================================================================
+# =============================================================================
 
-G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
-
-
+# =============================================================================
+# Orbit functions
+# =============================================================================
 def mass(dist, interp=M_ENC_INTERP):
     """Finds the interpolated central mass of a spherical distribution.
 
@@ -98,9 +121,9 @@ def mass(dist, interp=M_ENC_INTERP):
         if dist.unit != u.pc:
             try:
                 dist = dist.to(u.pc)
-            except u.UnitConversionError as e:
-                raise e
-    except AttributeError as e:
+            except u.UnitConversionError as err:
+                raise err
+    except AttributeError as err:
         # Assume units in pc if no units given
         dist = dist * u.pc
 
@@ -134,9 +157,9 @@ def potential(dist):
         if dist.unit != u.pc:
             try:
                 dist = dist.to(u.pc)
-            except u.UnitConversionError as e:
-                raise e
-    except AttributeError as e:
+            except u.UnitConversionError as err:
+                raise err
+    except AttributeError as err:
         # Assume units in pc if no units given
         dist = dist * u.pc
 
@@ -174,9 +197,9 @@ def mass_grad(dist, interp=M_GRAD_INTERP):
         if dist.unit != u.pc:
             try:
                 dist = dist.to(u.pc)
-            except u.UnitConversionError as e:
-                raise e
-    except AttributeError as e:
+            except u.UnitConversionError as err:
+                raise err
+    except AttributeError as err:
         # Assume units in pc if no units given
         dist = dist * u.pc
 
@@ -378,6 +401,9 @@ def orbit(r1, r2):
     return r_pos, r_vel, ang_pos, ang_vel
 
 
+# =============================================================================
+# Coordinate functions
+# =============================================================================
 def polar_to_cartesian(r_pos, r_vel, ang_pos, ang_vel):
     """Converts polar positions and velocities to cartesian.
 
@@ -512,11 +538,14 @@ def sky_coords(pos, vel):
                        v_y=vel[1] * u.km / u.s,
                        v_z=vel[2] * u.km / u.s,
                        galcen_distance=8. * u.kpc,
-                       galcen_coord=GC).transform_to(FK5)
+                       galcen_coord=GAL_CENTER).transform_to(FK5)
 
     return c
 
 
+# =============================================================================
+# The model function
+# =============================================================================
 def model(theta):
     """Model generator.
 
@@ -535,10 +564,13 @@ def model(theta):
     return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
 
 
+# =============================================================================
+# Plotting functions
+# =============================================================================
 def plot_orbit(r1, r2):
     pos, _ = polar_to_cartesian(*orbit(r1, r2))
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(pos[0, :], pos[1, :], 'b-', label="Gas Core")
     plt.plot([0], [0], 'ko', label='Sgr A*')
 
@@ -566,7 +598,7 @@ def plot_mass(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
     mass_r = [mass(r).value for r in r_pos]
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, mass_r)
     plt.title("$M$ vs. $r$")
     plt.xlabel("$r [pc]$")
@@ -595,7 +627,7 @@ def plot_mass_grad(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
     mass_grad_r = [mass_grad(r).value for r in r_pos]
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, mass_grad_r)
     plt.title("$dM/dr$ vs. $r$")
     plt.xlabel("$r [\\mathrm{pc}]$")
@@ -622,7 +654,7 @@ def plot_potential(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
     potential_r = [potential(r).value for r in r_pos]
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, potential_r)
     plt.title("$\\Phi(r)$ vs. $r$")
     plt.xlabel("$r [\\mathrm{pc}]$")
@@ -649,7 +681,7 @@ def plot_potential_grad(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
     potential_grad_r = [potential_grad(r).value for r in r_pos]
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, potential_grad_r)
     plt.title("$\\nabla\\Phi(r)$ vs. $r$")
     plt.xlabel("$r [\\mathrm{pc}]$")
@@ -703,7 +735,7 @@ def plot_V_eff(r1, r2):
     """
     r_pos = np.linspace(r1, r2, num=100)
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, V_eff(r_pos, angular_momentum(r1, r2)))
     plt.title("$V_{\\mathrm{eff}}(r)$ vs. $r$")
     plt.xlabel("$r [\\mathrm{pc}]$")
@@ -735,7 +767,7 @@ def plot_acceleration(r1, r2):
 
     a = a_l - potential_grad_r
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, a)
     plt.title("$a(r)$ vs. $r$")
     plt.xlabel("$r [\\mathrm{pc}]$")
@@ -761,7 +793,7 @@ def plot_velocity(r1, r2):
     """
     _, r_vel, ang_pos, ang_vel = orbit(r1, r2)
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(ang_pos, r_vel)
     plt.title("$v_{r}$ vs. $\\theta$")
     plt.xlabel("$\\theta [\\mathrm{rad}]$")
@@ -769,7 +801,7 @@ def plot_velocity(r1, r2):
     plt.grid()
     plt.show()
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=FIGSIZE)
     plt.plot(ang_pos, ang_vel)
     plt.title("$v_{\\theta}$ vs. $\\theta$")
     plt.xlabel("$\\theta [\\mathrm{rad}]$")
@@ -780,9 +812,11 @@ def plot_velocity(r1, r2):
     return r_vel, ang_vel
 
 
-if __name__ == '__main__':
+# =============================================================================
+# Main function
+# =============================================================================
+def main():
     # set initial variables
-    figsize = (12, 12)
     r1 = 1.
     r2 = 5.
 
@@ -795,9 +829,9 @@ if __name__ == '__main__':
 
     l_cons = angular_momentum(rr1, rr2)
 
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=FIGSIZE)
     ax = fig.gca(projection='3d')
-    surf = ax.plot_surface(rr1, rr2, l_cons)
+    ax.plot_surface(rr1, rr2, l_cons)
     ax.set_xlabel('$r_{1}$')
     ax.set_ylabel('$r_{2}$')
     ax.set_zlabel('$l$')
@@ -811,9 +845,9 @@ if __name__ == '__main__':
 
     V_eff_r = V_eff(rr, ll)
 
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=FIGSIZE)
     ax = fig.gca(projection='3d')
-    surf = ax.plot_surface(rr, ll, V_eff_r)
+    ax.plot_surface(rr, ll, V_eff_r)
     ax.set_xlabel('$r$')
     ax.set_ylabel('$l$')
     ax.set_zlabel('$V_{eff}$')
@@ -830,7 +864,7 @@ if __name__ == '__main__':
 #
 #    V_eff_r = V_eff(rr, rr1, rr2)
 #
-#    fig = plt.figure(figsize=figsize)
+#    fig = plt.figure(figsize=FIGSIZE)
 #    ax = fig.gca(projection='3d')
 #    ir2 = -1
 #    surf = ax.plot_surface(rr[:, :, ir2], rr1[:, :, ir2], V_eff_r[:, :, ir2])
@@ -842,7 +876,7 @@ if __name__ == '__main__':
 #    plt.savefig(save_path, bbox_inches='tight')
 #    plt.show()
 #
-#    fig = plt.figure(figsize=figsize)
+#    fig = plt.figure(figsize=FIGSIZE)
 #    ax = fig.gca(projection='3d')
 #    ir1 = 0
 #    surf = ax.plot_surface(rr[:, ir1, :], rr2[:, ir1, :], V_eff_r[:, ir1, :])
@@ -862,3 +896,7 @@ if __name__ == '__main__':
     print("r_2 = {0:.4f}".format(r2))
     print("r_max = {0:.4f}".format(np.max(r_pos)))
     print("r_min = {0:.4f}".format(np.min(r_pos)))
+
+
+if __name__ == '__main__':
+    main()
