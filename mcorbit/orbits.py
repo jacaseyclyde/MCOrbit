@@ -29,7 +29,6 @@ import os
 import warnings
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from scipy.interpolate import interp1d
 
@@ -37,16 +36,25 @@ import astropy.units as u
 from astropy.constants import G
 from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 outpath = '../out/'
 
 # galactic center
-gc = ICRS(ra=Angle('17h45m40.0409s'), dec=Angle('-29:0:28.118 degrees'))
+GC = ICRS(ra=Angle('17h45m40.0409s'), dec=Angle('-29:0:28.118 degrees'))
 
-Mdat = np.genfromtxt(os.path.join(os.path.dirname(__file__),
-                                  '../dat/enclosed_mass_distribution.txt'))
-Mdist = Angle(Mdat[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
-Menc = 10 ** Mdat[:, 1] * u.Msun
-Mgrad = np.gradient(Menc.value, Mdist.value) * u.Msun / u.pc
+M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
+                                   '../dat/enclosed_mass_distribution.txt'))
+M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
+M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
+#Menc = len(Menc) * [Menc[227]] np.zeros(len(Menc)) * u.Msun / u.pc  #
+M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
+
+M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
+                        kind='cubic', fill_value='extrapolate')
+M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
+                         kind='cubic', fill_value='extrapolate')
 
 h = 500 * u.yr  # timestep
 
@@ -82,7 +90,11 @@ def mass(dist):
         # Assume units in pc if no units given
         dist = dist * u.pc
 
-    return (interp1d(Mdist, Menc, kind='cubic'))(dist) * u.Msun
+    if dist == np.inf * u.pc:
+        return np.inf * u.Msun
+
+    mass_enc = M_ENC_INTERP(dist)
+    return np.power(10, mass_enc) * u.Msun
 
 
 def potential(dist):
@@ -115,10 +127,12 @@ def potential(dist):
         dist = dist * u.pc
 
     with warnings.catch_warnings(record=True):
+        if dist == np.inf:
+            return 0. * (u.pc ** 2) / (u.yr ** 2)
         return - G * mass(dist) / dist
 
 
-def mass_grad(dist):
+def mass_grad(dist, data=M_GRAD):
     """Automates calculation of the mass gradient.
 
     Wrapper function to evaluate the derivative of the non-analytic
@@ -149,7 +163,11 @@ def mass_grad(dist):
         # Assume units in pc if no units given
         dist = dist * u.pc
 
-    return (interp1d(Mdist, Mgrad, kind='cubic'))(dist) * u.Msun / u.pc
+    if dist == np.inf * u.pc:
+        return 0. * u.Msun / u.pc
+
+    m_grad_dist = (M_GRAD_INTERP(dist) * mass(dist) * np.log(10)).value
+    return m_grad_dist * u.Msun / u.pc
 
 
 def potential_grad(dist):
@@ -177,7 +195,7 @@ def potential_grad(dist):
     if (dist == 0):
         return np.inf * u.pc / (u.yr ** 2)
 
-    return -1 * (potential(dist) / dist) - G * mass_grad(dist) / dist
+    return (-1. / dist) * (potential(dist) + G * mass_grad(dist))
 
 
 def angular_momentum(r1, r2):
@@ -231,7 +249,32 @@ def angular_momentum(r1, r2):
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
 
+#    return np.sqrt(2 * (((r2 ** -2) - (r1 ** -2)) ** -1)
+#                   * (potential(r2) - potential(r1)))
     return r1 * np.sqrt(2 * (E - potential(r1)))
+
+
+def centrifugal_acceleration(dist, l_cons):
+    """The centrifugal pseudo-acceleration.
+
+    The acceleration in the radial direction due to a centrifugal
+    pseudo-force.
+
+    Parameters
+    ----------
+    dist : float
+        The distance at which to calculate this acceleration, in units
+        of parsecs
+    l_cons : float
+        The angular momentum per unit mass, in units of parsec^2 / year
+
+    Returns
+    -------
+    float
+        The centrifugal "acceleration", in units of parsecs / year^2
+
+    """
+    return (l_cons ** 2) / (dist ** 3)
 
 
 def orbit(r1, r2, tstep):
@@ -267,7 +310,6 @@ def orbit(r1, r2, tstep):
         The angular velocity at each timestep. Covers one angular
         period.
 
-    x0 = [pc], v0 = [km/s], tstep = [yr]
     """
     # pylint: disable=E1101
     # force the order of apsides such that r1 = periapsis
@@ -293,10 +335,18 @@ def orbit(r1, r2, tstep):
 
     while ang_pos[-1] < 2 * np.pi * u.rad:
         # radial portion first
-        r_half = r_pos[-1] + 0.5 * h * r_vel[-1]  # first drift
-        r_vel_new = r_vel[-1] + h * (((l_cons ** 2) / (r_half ** 3))
-                                     - potential_grad(r_half))  # kick
-        r_new = r_half + 0.5 * h * r_vel_new  # second drift
+        # first drift
+        r_half = r_pos[-1] + 0.5 * h * r_vel[-1]
+#        r_half = round(r_half.value, 3) * u.pc
+
+        # kick
+        a_centrifugal = centrifugal_acceleration(r_half, l_cons)
+        r_vel_new = r_vel[-1] + h * (a_centrifugal - potential_grad(r_half))
+#        r_vel_new = round(r_vel_new.value, 3) * u.pc / u.yr
+
+        # second drift
+        r_new = r_half + 0.5 * h * r_vel_new
+#        r_new = round(r_new.value, 3) * u.pc  # significant figures
         r_pos = np.append(r_pos.value, r_new.value) * u.pc
         r_vel = np.append(r_vel.value, r_vel_new.value) * u.pc / u.yr
 
@@ -314,6 +364,34 @@ def orbit(r1, r2, tstep):
 
 
 def polar_to_cartesian(r_pos, r_vel, ang_pos, ang_vel):
+    """Converts polar positions and velocities to cartesian.
+
+    Polar to cartesian coordinate transform, where the polar
+    coordinates given are assumed to be in the z = 0 plane of the
+    cartesian system. Converts both positions and velocities.
+
+    Parameters
+    ----------
+    r_pos : array
+        Vector of radial positions.
+    r_vel : array
+        Vector of radial velocities. Should be the same shape as r_pos.
+    ang_pos : array
+        Vector of angular positions. Should be the same shape as r_pos.
+    ang_vel : array
+        Vector of angular velocities. Should be the same shape as
+        r_pos.
+
+    Returns
+    -------
+    pos : array, shape (3, len(r_pos))
+        Matrix of 3D cartisian coordinates of original polar
+        coordinates.
+    vel : array, shape (3, len(r_vel))
+        Matrix of 3D cartesian coordinates of original velocity
+        coordinates.
+
+    """
     pos = np.array([r_pos * np.cos(ang_pos),
                     r_pos * np.sin(ang_pos),
                     [0.] * len(r_pos)])
@@ -385,7 +463,7 @@ def sky(p):
                        v_y=rot_V[1] * u.km / u.s,
                        v_z=rot_V[2] * u.km / u.s,
                        galcen_distance=8. * u.kpc,
-                       galcen_coord=gc).transform_to(FK5)
+                       galcen_coord=GC).transform_to(FK5)
 
     return c
 
@@ -396,151 +474,274 @@ def model(p):
     return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
 
 
-def plot_func(p):
-    orb_r, orb_v = orbit(p[-2], p[-1], h)
-    sky_xyv = model(p)
+def plot_orbit(r1, r2):
+    pos, vel = polar_to_cartesian(*orbit(r1, r2, 500))
 
-    plt.figure(1)
-    plt.plot(sky_xyv[:, 0], sky_xyv[:, 1], 'k-', label='Gas core')
-#    plt.plot([0], [0], 'g*', label='Sgr A*')
-
-    plt.grid(True)
-    plt.axes().set_aspect('equal', 'datalim')
-    plt.title('Sky Plane')  # . p = {}'.format(p))
-    plt.xlabel('Offset (rad)')
-    plt.ylabel('Offset (rad)')
-    plt.savefig(outpath + 'skyplane.pdf', bbox_inches='tight')
-    plt.legend()
-    plt.show()
-
-    plt.figure(2)
-    plt.plot(orb_r[:, 0], orb_r[:, 1], 'k-', label='Gas core')
-    plt.plot([0], [0], 'g*', label='Sgr A*')
+    plt.figure(figsize=figsize)
+    plt.plot(pos[0, :], pos[1, :], 'b-', label="Gas Core")
+    plt.plot([0], [0], 'ko', label='Sgr A*')
 
     plt.grid(True)
     plt.axes().set_aspect('equal', 'datalim')
-    plt.title('Orbit Plane')  # . p = {}'.format(p))
-    plt.xlabel('Offset (pc)')
-    plt.ylabel('Offset (pc)')
-    plt.savefig(outpath + 'orbitplane.pdf', bbox_inches='tight')
+    plt.xlabel('Offset [pc]')
+    plt.ylabel('Offset [pc]')
     plt.legend()
     plt.show()
+
+
+def plot_mass(r1, r2):
+    """Plot the mass.
+
+    Plot the central mass function from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the central mass function to plot.
+    r2 : float
+        The maximum distance of the central mass function to plot.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+    mass_r = [mass(r).value for r in r_pos]
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, mass_r)
+    plt.title("$M$ vs. $r$")
+    plt.xlabel("$r [pc]$")
+    plt.ylabel("$M(r) [M_{\\odot}]$")
+    plt.grid()
+    plt.show()
+
+    return mass_r
+
+
+def plot_mass_grad(r1, r2):
+    """Plot the mass.
+
+    Plot the central mass function from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the central mass function to plot.
+    r2 : float
+        The maximum distance of the central mass function to plot.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+    mass_grad_r = [mass_grad(r).value for r in r_pos]
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, mass_grad_r)
+    plt.title("$dM/dr$ vs. $r$")
+    plt.xlabel("$r [\\mathrm{pc}]$")
+    plt.ylabel("$dM/dr [M_{\\odot} / \\mathrm{pc}]$")
+    plt.grid()
+    plt.show()
+
+    return mass_grad_r
+
+
+def plot_potential(r1, r2):
+    """Plot the potential.
+
+    Plot the potential from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the potential to plot.
+    r2 : float
+        The maximum distance of the potnetial to plot.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+    potential_r = [potential(r).value for r in r_pos]
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, potential_r)
+    plt.title("$\\Phi(r)$ vs. $r$")
+    plt.xlabel("$r [\\mathrm{pc}]$")
+    plt.ylabel("$\\Phi [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
+    plt.grid()
+    plt.show()
+
+    return potential_r
+
+
+def plot_potential_grad(r1, r2):
+    """Plot the potential.
+
+    Plot the potential from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the potential to plot.
+    r2 : float
+        The maximum distance of the potnetial to plot.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+    potential_grad_r = [potential_grad(r).value for r in r_pos]
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, potential_grad_r)
+    plt.title("$\\nabla\\Phi(r)$ vs. $r$")
+    plt.xlabel("$r [\\mathrm{pc}]$")
+    plt.ylabel("$\\nabla\\Phi [\\mathrm{pc} / \\mathrm{yr}^{2}]$")
+    plt.grid()
+    plt.show()
+
+    return potential_grad_r
+
+
+def V_eff(r1, r2):
+    r_pos = np.linspace(r1, r2, num=100)
+    l_cons = angular_momentum(r1, r2)
+
+    potential_r = [potential(r).value for r in r_pos]
+    V_l = ((l_cons ** 2) / (2 * (r_pos ** 2))).value
+
+    return V_l + potential_r
+
+
+def plot_V_eff(r1, r2):
+    """Plot the potential.
+
+    Plot the potential from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the potential to plot.
+    r2 : float
+        The maximum distance of the potnetial to plot.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, V_eff(r1, r2))
+    plt.title("$V_{\\mathrm{eff}}(r)$ vs. $r$")
+    plt.xlabel("$r [\\mathrm{pc}]$")
+    plt.ylabel("$V_{\\mathrm{eff}} [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
+    plt.grid()
+    plt.show()
+
+    return V_eff
+
+
+def plot_acceleration(r1, r2):
+    """Plot the potential.
+
+    Plot the potential from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the potential to plot.
+    r2 : float
+        The maximum distance of the potnetial to plot.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+    potential_grad_r = [potential_grad(r).value for r in r_pos]
+
+    l_cons = angular_momentum(r1, r2)
+    a_l = ((l_cons ** 2) / (r_pos ** 3)).value
+
+    a = a_l - potential_grad_r
+
+    plt.figure(figsize=figsize)
+    plt.plot(r_pos, a)
+    plt.title("$a(r)$ vs. $r$")
+    plt.xlabel("$r [\\mathrm{pc}]$")
+    plt.ylabel("$a [\\mathrm{pc} / \\mathrm{yr}^{2}]$")
+    plt.grid()
+    plt.show()
+
+    return a
+
+
+def plot_velocity(r1, r2):
+    """Plot the potential.
+
+    Plot the potential from `r1` to `r2`.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the potential to plot.
+    r2 : float
+        The maximum distance of the potnetial to plot.
+
+    """
+    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2, 100)
+
+    plt.figure(figsize=figsize)
+    plt.plot(ang_pos, r_vel)
+    plt.title("$v_{r}$ vs. $\\theta$")
+    plt.xlabel("$\\theta [\\mathrm{rad}]$")
+    plt.ylabel("$v_{r} [\\mathrm{pc} / \\mathrm{yr}]$")
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=figsize)
+    plt.plot(ang_pos, ang_vel)
+    plt.title("$v_{\\theta}$ vs. $\\theta$")
+    plt.xlabel("$\\theta [\\mathrm{rad}]$")
+    plt.ylabel("$v_{\\theta} [\\mathrm{rad} / \\mathrm{yr}]$")
+    plt.grid()
+    plt.show()
+
+    return r_vel, ang_vel
 
 
 if __name__ == '__main__':
-    # generate orbit
+    # set initial variables
     figsize = (6, 6)
-    r1 = np.float128(1.5)
-    r2 = np.float128(3.)
+    r1 = 1.
+    r2 = 5.
+
+    # set up gridspace of apsides
+    radii = np.linspace(r1, r2, num=100)
+    rr1, rr2 = np.meshgrid(radii, radii)
+
+#    mass_r = plot_mass(1., 5.)
+#    mass_grad_r = plot_mass_grad(1., 5.)
+#    potential_r = plot_potential(1., 5.)
+#    potential_grad_r = plot_potential_grad(1., 5.)
+#    plot_V_eff(r1, r2)
+
+    V_eff_r1 = np.array([V_eff(r, r2) for r in radii])
+    V_eff_r2 = np.array([V_eff(r1, r) for r in radii])
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca(projection='3d')
+    surf = ax.plot_surface(rr2.T, rr1.T, V_eff_r1)
+    ax.set_xlabel('$r$')
+    ax.set_ylabel('$r_{1}$')
+    ax.set_zlabel('$V_{eff}$')
+#    plt.contour(radii, radii, V_eff_r1)
+    plt.show()
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.gca(projection='3d')
+    surf = ax.plot_surface(rr2.T, rr1.T, V_eff_r2)
+    ax.set_xlabel('$r$')
+    ax.set_ylabel('$r_{2}$')
+    ax.set_zlabel('$V_{eff}$')
+#    plt.contour(radii, radii, V_eff_r1)
+    plt.show()
+
+#    r_vel, ang_vel = plot_velocity(r1, r2)
+#    r_acc = plot_acceleration(r1, r2)
+
+#    plot_orbit(r1, r2)
+
     r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2, 100)
-    pos, vel = polar_to_cartesian(r_pos, r_vel, ang_pos, ang_vel)
-
-    l_cons = angular_momentum(r1, r2)
-    potential_r = [potential(r).value for r in r_pos]
-    potential_grad_r = [-1 * potential_grad(r).value for r in r_pos]
-
-    mass_r = [mass(r).value for r in r_pos]
-    mass_grad_r = [mass_grad(r).value for r in r_pos]
-
-    V_l = ((l_cons ** 2) / (2 * r_pos ** 2)).value
-    V_eff = V_l + potential_r
-
-    a_l = ((l_cons ** 2) / (r_pos ** 3)).value
-    a = a_l + potential_grad_r
-
-    plt.figure(figsize=figsize)
-    plt.plot(pos[0], pos[1])
-    plt.grid()
-    plt.title("Orbit")
-    plt.xlabel("$x$")
-    plt.ylabel("$y$")
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(r_pos, r_vel)
-    plt.title("$v_{r}$ vs. $r$")
-    plt.xlabel("$r$")
-    plt.ylabel("$v_{r}$")
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(r_pos, a, '-k', label="$a_{r}$")
-#    plt.plot(r_pos, a_l, '--b', label="$a_{l}$", alpha=0.7)
-#    plt.plot(r_pos, potential_grad_r, '--r', label="$-\\nabla\\Phi_{r}$",
-#             alpha=0.7)
-    plt.title("$a$ vs. $r$")
-    plt.xlabel("$r$")
-    plt.ylabel("$a$")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(r_pos, V_eff, '-k', label="$V_{eff}$")
-#    plt.plot(r_pos, V_l, '--b', label="$V_{l}$", alpha=0.7)
-#    plt.plot(r_pos, potential_r, '--r', label="$\\Phi_{r}$", alpha=0.7)
-    plt.title("$V$ vs. $r$")
-    plt.xlabel("$r$")
-    plt.ylabel("$V$")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(r_pos)
-    plt.title("$r_{pos}$ vs $n_{i}$")
-    plt.xlabel("$n_{i}$")
-    plt.ylabel("$r_{pos}$")
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(r_vel)
-    plt.title("$r_{vel}$ vs $n_{i}$")
-    plt.xlabel("$n_{i}$")
-    plt.ylabel("$r_{vel}$")
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(a, '-k', label="$a_{r}$")
-#    plt.plot(r_pos, a_l, '--b', label="$a_{l}$", alpha=0.7)
-#    plt.plot(r_pos, potential_grad_r, '--r', label="$-\\nabla\\Phi_{r}$",
-#             alpha=0.7)
-    plt.title("$a$ vs. $n_{i}$")
-    plt.xlabel("$n_{i}$")
-    plt.ylabel("$a$")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=figsize)
-    plt.plot(V_eff, '-k', label="$V_{eff}$")
-#    plt.plot(r_pos, V_l, '--b', label="$V_{l}$", alpha=0.7)
-#    plt.plot(r_pos, potential_r, '--r', label="$\\Phi_{r}$", alpha=0.7)
-    plt.title("$V$ vs. $n_{i}$")
-    plt.xlabel("$n_{i}$")
-    plt.ylabel("$V$")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-#    plt.figure(figsize=(12, 12))
-#    plt.plot(r_pos, mass_r)
-#    plt.title("$M_{r}$ vs. $r$")
-#    plt.xlabel("$r$")
-#    plt.ylabel("$M_{r}$")
-#    plt.grid()
-#    plt.show()
-#
-#    plt.figure(figsize=(12, 12))
-#    plt.plot(r_pos, mass_grad_r)
-#    plt.title("$\\nabla M_{r}$ vs. $r$")
-#    plt.xlabel("$r$")
-#    plt.ylabel("$\\nabla M_{r}$")
-#    plt.grid()
-#    plt.show()
 
     print("r_1 = {0:.4f}".format(r1))
     print("r_2 = {0:.4f}".format(r2))
