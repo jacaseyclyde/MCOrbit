@@ -48,8 +48,15 @@ M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
                                    '../dat/enclosed_mass_distribution.txt'))
 M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
-#Menc = len(Menc) * [Menc[227]] np.zeros(len(Menc)) * u.Msun / u.pc  #
 M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
+
+## uncomment to use point mass equal to mass enclosed at ~1pc
+#M_ENC = len(M_ENC) * [M_ENC[175]]  # 1pc away from Sgr A*
+#M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
+#
+## uncomment to use point mass equal to mass enclosed at ~5pc
+#M_ENC = len(M_ENC) * [M_ENC[240]]  # 5pc away from Sgr A*
+#M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
 
 M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
                         kind='cubic', fill_value='extrapolate')
@@ -597,14 +604,11 @@ def plot_potential_grad(r1, r2):
     return potential_grad_r
 
 
-def V_eff(r1, r2):
-    r_pos = np.linspace(r1, r2, num=100)
+@np.vectorize
+def V_eff(r, r1, r2):
     l_cons = angular_momentum(r1, r2)
-
-    potential_r = [potential(r).value for r in r_pos]
-    V_l = ((l_cons ** 2) / (2 * (r_pos ** 2))).value
-
-    return V_l + potential_r
+    V_l = ((l_cons ** 2) / (2 * (r ** 2))).value
+    return V_l + potential(r).value
 
 
 def plot_V_eff(r1, r2):
@@ -623,14 +627,14 @@ def plot_V_eff(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
 
     plt.figure(figsize=figsize)
-    plt.plot(r_pos, V_eff(r1, r2))
+    plt.plot(r_pos, V_eff(r_pos, r1, r2))
     plt.title("$V_{\\mathrm{eff}}(r)$ vs. $r$")
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$V_{\\mathrm{eff}} [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
     plt.grid()
+    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_r.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
-
-    return V_eff
 
 
 def plot_acceleration(r1, r2):
@@ -701,40 +705,53 @@ def plot_velocity(r1, r2):
 
 if __name__ == '__main__':
     # set initial variables
-    figsize = (6, 6)
+    figsize = (12, 12)
     r1 = 1.
     r2 = 5.
 
     # set up gridspace of apsides
-    radii = np.linspace(r1, r2, num=100)
-    rr1, rr2 = np.meshgrid(radii, radii)
+    n_pts = 20
+    rr = np.linspace(r1, r2, num=n_pts)
+    rr1 = np.linspace(r1, r2, num=n_pts)
+    rr2 = np.linspace(r1, r2, num=n_pts)
+    rr, rr1, rr2 = np.meshgrid(rr, rr1, rr2, indexing='ij')
 
 #    mass_r = plot_mass(1., 5.)
 #    mass_grad_r = plot_mass_grad(1., 5.)
 #    potential_r = plot_potential(1., 5.)
 #    potential_grad_r = plot_potential_grad(1., 5.)
-#    plot_V_eff(r1, r2)
+    plot_V_eff(r1, r2)
 
-    V_eff_r1 = np.array([V_eff(r, r2) for r in radii])
-    V_eff_r2 = np.array([V_eff(r1, r) for r in radii])
+    V_eff_r = V_eff(rr, rr1, rr2)
 
     fig = plt.figure(figsize=figsize)
     ax = fig.gca(projection='3d')
-    surf = ax.plot_surface(rr2.T, rr1.T, V_eff_r1)
+    ir2 = -1
+    surf = ax.plot_surface(rr[:, :, ir2], rr1[:, :, ir2], V_eff_r[:, :, ir2])
     ax.set_xlabel('$r$')
     ax.set_ylabel('$r_{1}$')
     ax.set_zlabel('$V_{eff}$')
-#    plt.contour(radii, radii, V_eff_r1)
+    plt.title("$V_e$ vs. $r, r_1, r_2 = {0:.3f}$".format(rr2[0, 0, ir2]))
+    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_Mr_r2.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     fig = plt.figure(figsize=figsize)
     ax = fig.gca(projection='3d')
-    surf = ax.plot_surface(rr2.T, rr1.T, V_eff_r2)
+    ir1 = 0
+    surf = ax.plot_surface(rr[:, ir1, :], rr2[:, ir1, :], V_eff_r[:, ir1, :])
     ax.set_xlabel('$r$')
     ax.set_ylabel('$r_{2}$')
     ax.set_zlabel('$V_{eff}$')
-#    plt.contour(radii, radii, V_eff_r1)
+    plt.title("$V_e$ vs. $r, r_2, r_1 = {0:.3f}$".format(rr2[0, ir1, 0]))
+    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_Mr_r1.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
+
+    # 4D plotting
+#    fig = plt.figure(figsize=figsize)
+#    ax = fig.gca(projection='3d')
+#    ax.scatter(rr, rr1, rr2, s=V_eff_r)
 
 #    r_vel, ang_vel = plot_velocity(r1, r2)
 #    r_acc = plot_acceleration(r1, r2)
