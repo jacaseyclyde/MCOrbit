@@ -80,6 +80,11 @@ def mass(dist, interp=M_ENC_INTERP):
     dist : float
         The distance from Sgr A*, in units of length. If no units are
         given, parsecs are assumed.
+    interp : func
+        The mass function to use. Should accept a distance from the
+        source in pc, and return the mass enclosed, in log(Msun).
+        Defaults to interpolations of the mass distribution around
+        Sgr A* found by Feldmeier-Krause et al. (2017).
 
     Returns
     -------
@@ -151,9 +156,12 @@ def mass_grad(dist, interp=M_GRAD_INTERP):
     dist : float
         The distance at which to evaluate the gradient of the spherical
         mass function.
-    dr : float, optional (default=0.001)
-        The step size to use for gradient evaluation. Default size is
-        the rough spacing (in pc) of our mass data.
+    interp : func
+        The mass gradient function to use. Should accept a distance
+        from the source in pc, and return the mass enclosed, in
+        log(Msun). Defaults to interpolations of the gradient of the
+        mass distribution around Sgr A* found by
+        Feldmeier-Krause et al. (2017).
 
     Returns
     -------
