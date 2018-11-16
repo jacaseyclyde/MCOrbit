@@ -59,14 +59,6 @@ class TestModelProbability(object):
         prob = self.model.model_prob(model)
         assert all(prob == 0.)
 
-    def test_no_dist(self):
-        """
-        Tests the posterior probability for a datapoint on the model
-        """
-        data_prob = self.model.model_prob(self.data)
-        perturb_prob = self.model.model_prob(self.data + np.random.normal(0))
-        assert all(data_prob >= perturb_prob)
-
 
 class TestLnLike(object):
     """
@@ -118,41 +110,14 @@ class TestLnPrior(object):
 
         self.model = model.Model(np.random.rand(6, 3), pspace)
 
-    def test_all_bound(self):
+    def test_bound(self):
         params = np.random.rand(5)
         ln_prior = self.model.ln_prior(params)
 
         assert ln_prior == np.log(2**(-5))
 
-    def test_all_unbound(self):
+    def test_unbound(self):
         params = np.random.rand(5) + 1
         ln_prior = self.model.ln_prior(params)
 
         assert ln_prior == -np.inf
-
-    def test_mix_bound_unbound(self):
-        params = np.random.rand(5)
-        params[0] += 1
-        params[2] += 1
-        ln_prior = self.model.ln_prior(params)
-
-        assert ln_prior == -np.inf
-
-
-#class TestLnLike(object):
-#    """
-#    Test the natural log of our pdf
-#    """
-#
-#    def test_inf_dist_data(self):
-#        test_data = np.array(5 * [3 * [np.inf]])
-#        pspace = np.array([[0., 1.],
-#                           [0., 1.],
-#                           [0., 1.],
-#                           [0., 1.],
-#                           [0., 1.]])
-#
-#        self.model = model.Model(test_data, pspace)
-#        ln_prob = self.model.ln_like(np.random.rand(5))
-#
-#        assert ln_prob == -np.inf
