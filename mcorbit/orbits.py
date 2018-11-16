@@ -26,6 +26,7 @@ FK5 coordinate system for comparison to radio data.
 
 """
 # pylint: disable=E0611, E1101
+# pylint: disable=W0621, W0611
 import os
 import warnings
 
@@ -94,7 +95,7 @@ def mass(dist, interp=M_ENC_INTERP):
 
     """
     try:
-        if (dist.unit != u.pc):
+        if dist.unit != u.pc:
             try:
                 dist = dist.to(u.pc)
             except u.UnitConversionError as e:
@@ -130,7 +131,7 @@ def potential(dist):
 
     """
     try:
-        if (dist.unit != u.pc):
+        if dist.unit != u.pc:
             try:
                 dist = dist.to(u.pc)
             except u.UnitConversionError as e:
@@ -170,7 +171,7 @@ def mass_grad(dist, interp=M_GRAD_INTERP):
 
     """
     try:
-        if (dist.unit != u.pc):
+        if dist.unit != u.pc:
             try:
                 dist = dist.to(u.pc)
             except u.UnitConversionError as e:
@@ -208,7 +209,7 @@ def potential_grad(dist):
     - Figure out is potential gradient is too high
 
     """
-    if (dist == 0):
+    if dist == 0:
         return np.inf * u.pc / (u.yr ** 2)
 
     return (-1. / dist) * (potential(dist) + G * mass_grad(dist))
@@ -241,7 +242,7 @@ def angular_momentum(r1, r2):
 
     """
     try:
-        if (r1.unit != u.pc):
+        if r1.unit != u.pc:
             try:
                 r1 = r1.to(u.pc)
             except u.UnitConversionError as e:
@@ -251,7 +252,7 @@ def angular_momentum(r1, r2):
         r1 = r1 * u.pc
 
     try:
-        if (r2.unit != u.pc):
+        if r2.unit != u.pc:
             try:
                 r2 = r2.to(u.pc)
             except u.UnitConversionError as e:
@@ -260,7 +261,7 @@ def angular_momentum(r1, r2):
         # Assume units in pc if no units given
         r2 = r2 * u.pc
 
-    if (r1 == r2):
+    if r1 == r2:
         return (r1 * np.sqrt(-1 * potential(r1) - G * mass_grad(r1))).value
 
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
@@ -330,10 +331,8 @@ def orbit(r1, r2):
     """
     # pylint: disable=E1101
     # force the order of apsides such that r1 = periapsis
-    if (r1 > r2):
-        tmp = r1
-        r1 = r2
-        r2 = tmp
+    if r1 > r2:
+        (r1, r2) = (r2, r1)
 
     # sticking to 2D polar for initial integration since z = 0
     r1 *= u.pc
@@ -373,7 +372,7 @@ def orbit(r1, r2):
         ang_pos = np.append(ang_pos.value, ang_new.value) * u.rad
         ang_vel = np.append(ang_vel.value, ang_vel_new.value) * u.rad / u.yr
 
-        if (r_pos[-1] > 5 * r2):
+        if r_pos[-1] > 1.5 * r2:
             break
 
     return r_pos, r_vel, ang_pos, ang_vel
@@ -537,7 +536,7 @@ def model(theta):
 
 
 def plot_orbit(r1, r2):
-    pos, vel = polar_to_cartesian(*orbit(r1, r2))
+    pos, _ = polar_to_cartesian(*orbit(r1, r2))
 
     plt.figure(figsize=figsize)
     plt.plot(pos[0, :], pos[1, :], 'b-', label="Gas Core")
@@ -760,7 +759,7 @@ def plot_velocity(r1, r2):
         The maximum distance of the potnetial to plot.
 
     """
-    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2)
+    _, r_vel, ang_pos, ang_vel = orbit(r1, r2)
 
     plt.figure(figsize=figsize)
     plt.plot(ang_pos, r_vel)
