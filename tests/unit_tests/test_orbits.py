@@ -84,10 +84,6 @@ class TestAngularMomentum(object):
         upper_bound = ((self.r2 ** 3) * orbits.potential_grad(self.r2)).value
         assert (self.l_cons ** 2) <= upper_bound
 
-    def test_units(self):
-        assert (orbits.angular_momentum(self.r1, self.r2).unit
-                == (u.pc ** 2) / u.yr)
-
     def test_circle(self):
         a_l = (self.l_circ ** 2) / (self.r_circ ** 3)
         a_g = orbits.potential_grad(self.r_circ).value

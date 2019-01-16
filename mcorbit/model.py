@@ -27,7 +27,7 @@ import warnings
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
 
-from . import orbits  # noqa
+from mcorbit import orbits  # noqa
 
 import numpy as np  # noqa
 

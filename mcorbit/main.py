@@ -31,7 +31,7 @@ contact PI Elisabeth A.C. Mills.
 import os
 import sys
 import warnings
-import time
+# import time
 
 # Set up warning filters for things that don't really matter to us
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
@@ -59,8 +59,8 @@ import aplpy  # noqa
 import emcee  # noqa
 from emcee.autocorr import AutocorrError  # noqa
 
-from . import orbits  # noqa
-from . import model  # noqa
+from mcorbit import orbits  # noqa
+from mcorbit import model  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -595,18 +595,18 @@ def main():
         pass
 
     # load data
-#    hnc3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
+    hnc3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
     masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-#    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
-#    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
-#    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
-#
-#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
+    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
+    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
+
+    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
 
 #    data = ppv_pts(masked_hnc3_2_cube)
 #
@@ -646,7 +646,9 @@ def main():
     if not os.listdir(OUTPATH):
         os.rmdir(OUTPATH)
 
+    return masked_hnc3_2_cube
+
 
 if __name__ == '__main__':
-    main()
+    masked_data = main()
 #    pass

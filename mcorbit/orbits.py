@@ -75,10 +75,10 @@ M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
 M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
                          kind='cubic', fill_value='extrapolate')
 
-## uncomment to use point mass equal to mass enclosed at ~1pc
+# uncomment to use point mass equal to mass enclosed at ~1pc
 #M_ENC = len(M_ENC) * [M_ENC[175]]  # 1pc away from Sgr A*
 #M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
-#
+
 ## uncomment to use point mass equal to mass enclosed at ~5pc
 #M_ENC = len(M_ENC) * [M_ENC[240]]  # 5pc away from Sgr A*
 #M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
@@ -316,6 +316,60 @@ def centrifugal_acceleration(dist, l_cons):
 
     """
     return (l_cons ** 2) / (dist ** 3)
+
+
+@np.vectorize
+def V_eff(r, l):
+    """The effective potential.
+
+    Calculates the effective potential at a point, given the angular
+    angular momentum per unit mass.
+
+    Parameters
+    ----------
+    r : float
+        The point at which to calculate the effective potential.
+    l : float
+        The angular momentum per unit mass.
+
+    Returns
+    -------
+    float
+        The effective potential for a particle of unit mass with
+        angular momentum `l` at point `r`
+
+    """
+    if r == 0. or r ** 2 == 0:
+        return np.inf
+    V_l = (l ** 2) / (2 * (r ** 2))
+    return V_l + potential(r).value
+
+
+@np.vectorize
+def V_eff_grad(r, l):
+    """The gradient of the effective potential.
+
+    Calculates the gradient of the effective potential at a point,
+    given the angular angular momentum per unit mass.
+
+    Parameters
+    ----------
+    r : float
+        The point at which to calculate the effective potential
+        gradient.
+    l : float
+        The angular momentum per unit mass.
+
+    Returns
+    -------
+    float
+        The effective potential gradient for a particle of unit mass
+        with angular momentum `l` at point `r`.
+
+    """
+    if r == 0. or r ** 2 == 0:
+        return np.inf
+    return - centrifugal_acceleration(r, l) + potential_grad(r).value
 
 
 def orbit(r1, r2):
@@ -604,6 +658,9 @@ def plot_mass(r1, r2):
     plt.xlabel("$r [pc]$")
     plt.ylabel("$M(r) [M_{\\odot}]$")
     plt.grid()
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'mass_r.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     return mass_r
@@ -633,6 +690,9 @@ def plot_mass_grad(r1, r2):
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$dM/dr [M_{\\odot} / \\mathrm{pc}]$")
     plt.grid()
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'mass_grad_r.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     return mass_grad_r
@@ -660,6 +720,9 @@ def plot_potential(r1, r2):
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$\\Phi [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
     plt.grid()
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'potential_r.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     return potential_r
@@ -687,34 +750,12 @@ def plot_potential_grad(r1, r2):
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$\\nabla\\Phi [\\mathrm{pc} / \\mathrm{yr}^{2}]$")
     plt.grid()
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'potential_grad_r.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     return potential_grad_r
-
-
-@np.vectorize
-def V_eff(r, l):
-    """The effective potential.
-
-    Calculates the effective potential at a point, given the angular
-    angular momentum per unit mass.
-
-    Parameters
-    ----------
-    r : float
-        The point at which to calculate the effective potential.
-    l : float
-        The angular momentum per unit mass.
-
-    Returns
-    -------
-    float
-        The effective potential for a particle of unit mass with
-        angular momentum `l` at point `r`
-
-    """
-    V_l = (l ** 2) / (2 * (r ** 2))
-    return V_l + potential(r).value
 
 
 def plot_V_eff(r1, r2):
@@ -741,7 +782,39 @@ def plot_V_eff(r1, r2):
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$V_{\\mathrm{eff}} [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
     plt.grid()
-    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_r.pdf')
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'V_eff_r.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.show()
+
+
+def plot_V_eff_grad(r1, r2):
+    """Plot the effective potential.
+
+    Plot the effective potential for a particle whose apsides are at
+    either end of the radial range.
+
+    Parameters
+    ----------
+    r1 : float
+        The minimum distance of the potential to plot. Periapsis for
+        test particle.
+    r2 : float
+        The maximum distance of the potnetial to plot. Apoapsis for
+        test particle.
+
+    """
+    r_pos = np.linspace(r1, r2, num=100)
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(r_pos, V_eff_grad(r_pos, angular_momentum(r1, r2)))
+    plt.title("$\\nabla V_{\\mathrm{eff}}(r)$ vs. $r$")
+    plt.xlabel("$r [\\mathrm{pc}]$")
+    plt.ylabel("$\\nabla V_{\\mathrm{eff}} "
+               "[\\mathrm{pc} / \\mathrm{yr}^{2}]$")
+    plt.grid()
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'V_eff_grad_r.pdf')
     plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
@@ -817,8 +890,8 @@ def plot_velocity(r1, r2):
 # =============================================================================
 def main():
     # set initial variables
-    r1 = 1.
-    r2 = 5.
+    r1 = .5
+    r2 = 20.
 
     # set up gridspace of apsides
     n_pts = 20
@@ -827,40 +900,41 @@ def main():
     rr2 = np.linspace(r1, r2, num=n_pts)
     rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
 
-    l_cons = angular_momentum(rr1, rr2)
+#    l_cons = angular_momentum(rr1, rr2)
+#
+#    fig = plt.figure(figsize=FIGSIZE)
+#    ax = fig.gca(projection='3d')
+#    ax.plot_surface(rr1, rr2, l_cons)
+#    ax.set_xlabel('$r_{1}$')
+#    ax.set_ylabel('$r_{2}$')
+#    ax.set_zlabel('$l$')
+#    plt.title("$l$ vs. $r_1, r_2$")
+#    save_path = os.path.join(os.path.dirname(__file__), 'l_cons.pdf')
+#    plt.savefig(save_path, bbox_inches='tight')
+#    plt.show()
+#
+#    l_range = np.linspace(0., np.max(l_cons), num=n_pts)
+#    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
+#
+#    V_eff_r = V_eff(rr, ll)
+#
+#    fig = plt.figure(figsize=FIGSIZE)
+#    ax = fig.gca(projection='3d')
+#    ax.plot_surface(rr, ll, V_eff_r)
+#    ax.set_xlabel('$r$')
+#    ax.set_ylabel('$l$')
+#    ax.set_zlabel('$V_{eff}$')
+#    plt.title("$V_{eff}$ vs. $r, l$")
+#    save_path = os.path.join(os.path.dirname(__file__), 'V_eff.pdf')
+#    plt.savefig(save_path, bbox_inches='tight')
+#    plt.show()
 
-    fig = plt.figure(figsize=FIGSIZE)
-    ax = fig.gca(projection='3d')
-    ax.plot_surface(rr1, rr2, l_cons)
-    ax.set_xlabel('$r_{1}$')
-    ax.set_ylabel('$r_{2}$')
-    ax.set_zlabel('$l$')
-    plt.title("$l$ vs. $r_1, r_2$")
-    save_path = os.path.join(os.path.dirname(__file__), 'l_cons.pdf')
-    plt.savefig(save_path, bbox_inches='tight')
-    plt.show()
-
-    l_range = np.linspace(np.min(l_cons), np.max(l_cons), num=n_pts)
-    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
-
-    V_eff_r = V_eff(rr, ll)
-
-    fig = plt.figure(figsize=FIGSIZE)
-    ax = fig.gca(projection='3d')
-    ax.plot_surface(rr, ll, V_eff_r)
-    ax.set_xlabel('$r$')
-    ax.set_ylabel('$l$')
-    ax.set_zlabel('$V_{eff}$')
-    plt.title("$V_{eff}$ vs. $r, l$")
-    save_path = os.path.join(os.path.dirname(__file__), 'V_eff.pdf')
-    plt.savefig(save_path, bbox_inches='tight')
-    plt.show()
-
-#    mass_r = plot_mass(1., 5.)
-#    mass_grad_r = plot_mass_grad(1., 5.)
-#    potential_r = plot_potential(1., 5.)
-#    potential_grad_r = plot_potential_grad(1., 5.)
+    mass_r = plot_mass(r1, r2)
+    mass_grad_r = plot_mass_grad(r1, r2)
+    potential_r = plot_potential(r1, r2)
+    potential_grad_r = plot_potential_grad(r1, r2)
     plot_V_eff(r1, r2)
+    plot_V_eff_grad(r1, r2)
 #
 #    V_eff_r = V_eff(rr, rr1, rr2)
 #
