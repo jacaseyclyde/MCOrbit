@@ -53,6 +53,7 @@ from astropy.coordinates import SkyCoord, FK5, ICRS, Angle  # noqa
 from spectral_cube import SpectralCube, LazyMask  # noqa
 
 import matplotlib as mpl  # noqa
+mpl.use('Agg')
 import matplotlib.pyplot as plt  # noqa
 import corner  # noqa
 import aplpy  # noqa
@@ -601,6 +602,7 @@ def main(pool, args):
     masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
+#    if not args.mpi:
     # plot the first 3 moments of each cube
     plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
     plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
