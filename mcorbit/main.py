@@ -31,6 +31,7 @@ contact PI Elisabeth A.C. Mills.
 import os
 import sys
 import warnings
+import argparse
 # import time
 
 # Set up warning filters for things that don't really matter to us
@@ -42,7 +43,7 @@ warnings.filterwarnings("ignore", message="The mpl_toolkits.axes_grid module "
                         "was deprecated in version 2.1")
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-from schwimmbad import MPIPool  # noqa
+import schwimmbad  # noqa
 
 import numpy as np  # noqa
 
@@ -368,14 +369,15 @@ def plot_moment(cube, moment, prefix):
     # XXX: Throw an error instead of printing
     z_unit = ''
     if moment == 0:
-        z_unit = 'Integrated Flux $(\mathrm{Hz}\,\mathrm{Jy}/\mathrm{beam})$'
+        z_unit = "Integrated Flux $(\\mathrm{Hz}\\,\\mathrm{Jy}/"
+        "\\mathrm{beam})$"
         cube = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
     elif moment == 1:
-        z_unit = '$v_{r} (\mathrm{km}/\mathrm{s})$'
+        z_unit = "$v_{r} (\\mathrm{km}/\\mathrm{s})$"
     elif moment == 2:
-        z_unit = '$\sigma_{v_{r}}^{2} (\mathrm{km}^{2}/\mathrm{s}^{2})$'
+        z_unit = "$\\sigma_{v_{r}}^{2} (\\mathrm{km}^{2}/\\mathrm{s}^{2})$"
     else:
-        print('Please choose from moment 0, 1, or 2')
+        print("Please choose from moment 0, 1, or 2")
         return
 
     # plot data
@@ -441,7 +443,7 @@ def corner_plot(walkers, prange, filename):
 # MCMC functions
 # =============================================================================
 
-def orbital_fitting(data, pspace, nwalkers=100, nmax=500, reset=True):
+def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
     Uses MCMC to fit orbits to the given `data`, exploring the parameter space
@@ -508,34 +510,34 @@ def orbital_fitting(data, pspace, nwalkers=100, nmax=500, reset=True):
 
     m = model.Model(data, pspace)
 
-    with MPIPool() as pool:
-        if not pool.is_master():
-            pool.wait()
-            sys.exit()
+#    with MPIPool() as pool:
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
 
-        # Set up backend so we can save chain in case of catastrophe
-        # note that this requires h5py and emcee 3.0.0 on github
-        filename = 'chain.h5'
-        backend = emcee.backends.HDFBackend(filename)
-        if reset:
-            # starts simulation over
-            backend.reset(nwalkers, ndim)
+    # Set up backend so we can save chain in case of catastrophe
+    # note that this requires h5py and emcee 3.0.0 on github
+    filename = 'chain.h5'
+    backend = emcee.backends.HDFBackend(filename)
+    if reset:
+        # starts simulation over
+        backend.reset(nwalkers, ndim)
 
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
-                                        backend=backend)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
+                                    backend=backend)
 
-        old_tau = np.inf
-        for sample in sampler.sample(pos, iterations=nmax, progress=True):
-            if sampler.iteration % 100:
-                continue
+    old_tau = np.inf
+    for sample in sampler.sample(pos, iterations=nmax, progress=True):
+        if sampler.iteration % 100:
+            continue
 
-            # check convergence
-            tau = sampler.get_autocorr_time(tol=0)
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-            if converged:
-                break
-            old_tau = tau
+        # check convergence
+        tau = sampler.get_autocorr_time(tol=0)
+        converged = np.all(tau * 100 < sampler.iteration)
+        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+        if converged:
+            break
+        old_tau = tau
 
     try:
         tau = sampler.get_autocorr_time()
@@ -577,7 +579,7 @@ def orbital_fitting(data, pspace, nwalkers=100, nmax=500, reset=True):
 # Main program
 # =============================================================================
 
-def main():
+def main(pool):
     """The main function of MC Orbit. Used to start all sampling
 
     This is the main function for MC Orbit. It carries out what is effectivley
@@ -608,15 +610,15 @@ def main():
     plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
     plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
 
-#    data = ppv_pts(masked_hnc3_2_cube)
-#
-#    # set up priors and do MCMC
-#    pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
-#                       [0., 1.5], [1.5, 4.]])
-#
-#    samples, pos_priors, all_samples = orbital_fitting(data, pspace,
-#                                                       nwalkers=100, nmax=5,
-#                                                       reset=True)
+    data = ppv_pts(masked_hnc3_2_cube)
+
+    # set up priors and do MCMC
+    pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
+                       [0., 1.5], [1.5, 4.]])
+
+    samples, pos_priors, all_samples = orbital_fitting(pool, data, pspace,
+                                                       nwalkers=100, nmax=5,
+                                                       reset=True)
 #
 #    # Visualize the fit
 #    print('plotting priors')
@@ -650,5 +652,18 @@ def main():
 
 
 if __name__ == '__main__':
-    masked_data = main()
+    # Parse command line arguments
+    PARSER = argparse.ArgumentParser()
+
+    # Add command line flags
+    GROUP = PARSER.add_mutually_exclusive_group()
+    GROUP.add_argument("--ncores", dest="n_cores", default=1,
+                       type=int, help="Number of processes "
+                       "(uses multiprocessing).")
+    GROUP.add_argument("--mpi", dest="mpi", default=False,
+                       action="store_true", help="Run with MPI.")
+    args = PARSER.parse_args()
+
+    with schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores) as pool:
+        main(pool)
 #    pass
