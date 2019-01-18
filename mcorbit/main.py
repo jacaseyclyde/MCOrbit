@@ -669,5 +669,5 @@ if __name__ == '__main__':
     args = PARSER.parse_args()
 
     pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
-        main(pool, args)
+    main(pool, args)
 #    pass
