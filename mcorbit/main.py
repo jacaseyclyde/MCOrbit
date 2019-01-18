@@ -511,34 +511,34 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True):
 
     m = model.Model(data, pspace)
 
-#    with MPIPool() as pool:
-    if not pool.is_master():
-        pool.wait()
-        sys.exit(0)
+    with pool as pool:
+        if not pool.is_master():
+            pool.wait()
+            sys.exit(0)
 
-    # Set up backend so we can save chain in case of catastrophe
-    # note that this requires h5py and emcee 3.0.0 on github
-    filename = 'chain.h5'
-    backend = emcee.backends.HDFBackend(filename)
-    if reset:
-        # starts simulation over
-        backend.reset(nwalkers, ndim)
+        # Set up backend so we can save chain in case of catastrophe
+        # note that this requires h5py and emcee 3.0.0 on github
+        filename = 'chain.h5'
+        backend = emcee.backends.HDFBackend(filename)
+        if reset:
+            # starts simulation over
+            backend.reset(nwalkers, ndim)
 
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
-                                    backend=backend)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
+                                        backend=backend)
 
-    old_tau = np.inf
-    for sample in sampler.sample(pos, iterations=nmax, progress=True):
-        if sampler.iteration % 100:
-            continue
+        old_tau = np.inf
+        for sample in sampler.sample(pos, iterations=nmax, progress=True):
+            if sampler.iteration % 100:
+                continue
 
-        # check convergence
-        tau = sampler.get_autocorr_time(tol=0)
-        converged = np.all(tau * 100 < sampler.iteration)
-        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-        if converged:
-            break
-        old_tau = tau
+            # check convergence
+            tau = sampler.get_autocorr_time(tol=0)
+            converged = np.all(tau * 100 < sampler.iteration)
+            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+            if converged:
+                break
+            old_tau = tau
 
     try:
         tau = sampler.get_autocorr_time()
@@ -668,6 +668,6 @@ if __name__ == '__main__':
                        action="store_true", help="Run with MPI.")
     args = PARSER.parse_args()
 
-    with schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores) as pool:
+    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
         main(pool, args)
 #    pass
