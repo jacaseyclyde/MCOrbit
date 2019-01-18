@@ -579,7 +579,7 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True):
 # Main program
 # =============================================================================
 
-def main(pool):
+def main(pool, args):
     """The main function of MC Orbit. Used to start all sampling
 
     This is the main function for MC Orbit. It carries out what is effectivley
@@ -656,6 +656,8 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
 
     # Add command line flags
+    PARSER.add_argument('-d', '--data_path', action='store',
+                        type=str, dest='DATA_PATH', default="~/data/")
     GROUP = PARSER.add_mutually_exclusive_group()
     GROUP.add_argument("--ncores", dest="n_cores", default=1,
                        type=int, help="Number of processes "
@@ -665,5 +667,5 @@ if __name__ == '__main__':
     args = PARSER.parse_args()
 
     with schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores) as pool:
-        main(pool)
+        main(pool, args)
 #    pass
