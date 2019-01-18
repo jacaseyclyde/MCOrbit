@@ -527,59 +527,70 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True,
         sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                         backend=backend)
 
-        # burn-in for 100 steps
-        state = sampler.run_mcmc(pos, 100)
-
         # full run
-        sampler.run_mcmc(state, nmax)
+        # this also includes the burn in, which we will discard later
+        # discard based on autocorrelation times
+        old_tau = np.inf
+        autocorr = np.empty(nmax)
+        index = 0
 
-        samples = sampler.get_chain(flat=True)
+        for sample in sampler.sample(pos, iterations=nmax, progress=True):
+            if sampler.iteration % 100:
+                continue
 
-#        old_tau = np.inf
-#        for sample in sampler.sample(pos, iterations=nmax, progress=True):
-#            if sampler.iteration % 100:
-#                continue
-#
-#            # check convergence
-#            tau = sampler.get_autocorr_time(tol=0)
-#            converged = np.all(tau * 100 < sampler.iteration)
-#            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-#            if converged:
-#                break
-#            old_tau = tau
-#
-#    try:
-#        tau = sampler.get_autocorr_time()
-#    except AutocorrError as e:
-#        print(e)
-#        tau = sampler.get_autocorr_time(tol=0)
-#
-#    print(tau)
+            # check convergence
+            tau = sampler.get_autocorr_time(tol=0)
+            autocorr[index] = np.mean(tau)
+            index += 1
 
-#    burnin = int(2 * np.nanmax(tau))
-#    thin = int(0.5 * np.nanmin(tau))
-#    samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
-#    log_prob_samples = sampler.get_log_prob(discard=burnin, flat=True,
-#                                            thin=thin)
-#    log_prior_samples = sampler.get_blobs(discard=burnin, flat=True, thin=thin)
-#
-#    print("burn-in: {0}".format(burnin))
-#    print("thin: {0}".format(thin))
-#    print("flat chain shape: {0}".format(samples.shape))
-#    print("flat log prob shape: {0}".format(log_prob_samples.shape))
-#    print("flat log prior shape: {0}".format(np.shape(log_prior_samples)))
-#
-#    # let's plot the results
-#    # using a try catch because as of testing, log_prior_samples is a NoneType
-#    # object, and I'm not sure why
-#    # XXX: needs fixing so that this just isn't an issue anymore
-#    try:
-#        all_samples = np.concatenate((samples, log_prob_samples[:, None],
-#                                      log_prior_samples[:, None]), axis=1)
-#    except TypeError as e:
-#        print(e)
-#        all_samples = np.concatenate((samples, log_prob_samples[:, None]),
-#                                     axis=1)
+            converged = np.all(tau * 100 < sampler.iteration)
+            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+            if converged:
+                break
+            old_tau = tau
+
+        n = 100 * np.arange(1, index+1)
+        y = autocorr[:index]
+
+        plt.figure(figsize=FIGSIZE)
+        plt.plot(n, n / 100.0, "--k")
+        plt.plot(n, y)
+        plt.xlim(0, n.max())
+        plt.ylim(0, y.max() + 0.1*(y.max() - y.min()))
+        plt.xlabel("number of steps")
+        plt.ylabel(r"mean $\hat{\tau}$")
+        plt.savefig(OUTPATH + 'autocorr.pdf')
+        plt.show()
+
+        tau = sampler.get_autocorr_time()
+        burnin = int(2*np.max(tau))
+        thin = int(0.5*np.min(tau))
+        samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+        log_prob_samples = sampler.get_log_prob(discard=burnin,
+                                                flat=True, thin=thin)
+        log_prior_samples = sampler.get_blobs(discard=burnin,
+                                              flat=True, thin=thin)
+
+        print("burn-in: {0}".format(burnin))
+        print("thin: {0}".format(thin))
+        print("flat chain shape: {0}".format(samples.shape))
+        print("flat log prob shape: {0}".format(log_prob_samples.shape))
+        print("flat log prior shape: {0}".format(log_prior_samples.shape))
+
+        all_samples = np.concatenate((
+            samples, log_prob_samples[:, None], log_prior_samples[:, None]
+        ), axis=1)
+
+        labels = list(map(r"$\theta_{{{0}}}$".format, range(1, ndim+1)))
+        labels += ["log prob", "log prior"]
+
+        corner.corner(all_samples, labels=labels)
+
+        print("Mean acceptance fraction: {0:.3f}"
+              .format(np.mean(sampler.acceptance_fraction)))
+
+        print("Mean autocorrelation time: {0:.3f} steps"
+              .format(np.mean(sampler.get_autocorr_time())))
 
     return samples
 
@@ -626,7 +637,7 @@ def main(pool, args):
                        [0., 1.5], [1.5, 4.]])
 
     samples = orbital_fitting(pool, data, pspace, nwalkers=32,
-                              nmax=1000, reset=True, mpi=args.mpi)
+                              nmax=3000, reset=False, mpi=args.mpi)
 
     plt.hist(samples[:, 0], 100, color='k', histtype='step')
     plt.xlabel(r"$\theta_1$")
