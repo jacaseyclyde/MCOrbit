@@ -62,7 +62,7 @@ import emcee  # noqa
 from emcee.autocorr import AutocorrError  # noqa
 
 from mcorbit import orbits  # noqa
-from mcorbit import model  # noqa
+from mcorbit.model import Model  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -444,7 +444,8 @@ def corner_plot(walkers, prange, filename):
 # MCMC functions
 # =============================================================================
 
-def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True):
+def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True,
+                    mpi=False):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
     Uses MCMC to fit orbits to the given `data`, exploring the parameter space
@@ -503,16 +504,15 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True):
     # Initialize the chain, which is uniformly distributed in parameter space
     pos_min = pspace[:, 0]
     pos_max = pspace[:, 1]
-    psize = pos_max - pos_min
-    pos = [pos_min + psize * np.random.rand(ndim) for i in range(nwalkers)]
+    prange = pos_max - pos_min
+    pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
 
-    # save positions of the priors to return with all data
-    priors = pos
-
-    m = model.Model(data, pspace)
-
+#    # save positions of the priors to return with all data
+#    priors = pos
     with pool as pool:
-        if not pool.is_master():
+        m = Model(data, pspace)
+
+        if mpi and not pool.is_master():
             pool.wait()
             sys.exit(0)
 
@@ -527,53 +527,61 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True):
         sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
                                         backend=backend)
 
-        old_tau = np.inf
-        for sample in sampler.sample(pos, iterations=nmax, progress=True):
-            if sampler.iteration % 100:
-                continue
+        # burn-in for 100 steps
+        state = sampler.run_mcmc(pos, 100)
 
-            # check convergence
-            tau = sampler.get_autocorr_time(tol=0)
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-            if converged:
-                break
-            old_tau = tau
+        # full run
+        sampler.run_mcmc(state, nmax)
 
-    try:
-        tau = sampler.get_autocorr_time()
-    except AutocorrError as e:
-        print(e)
-        tau = sampler.get_autocorr_time(tol=0)
+        samples = sampler.get_chain(flat=True)
 
-    print(tau)
+#        old_tau = np.inf
+#        for sample in sampler.sample(pos, iterations=nmax, progress=True):
+#            if sampler.iteration % 100:
+#                continue
+#
+#            # check convergence
+#            tau = sampler.get_autocorr_time(tol=0)
+#            converged = np.all(tau * 100 < sampler.iteration)
+#            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+#            if converged:
+#                break
+#            old_tau = tau
+#
+#    try:
+#        tau = sampler.get_autocorr_time()
+#    except AutocorrError as e:
+#        print(e)
+#        tau = sampler.get_autocorr_time(tol=0)
+#
+#    print(tau)
 
-    burnin = int(2 * np.nanmax(tau))
-    thin = int(0.5 * np.nanmin(tau))
-    samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
-    log_prob_samples = sampler.get_log_prob(discard=burnin, flat=True,
-                                            thin=thin)
-    log_prior_samples = sampler.get_blobs(discard=burnin, flat=True, thin=thin)
+#    burnin = int(2 * np.nanmax(tau))
+#    thin = int(0.5 * np.nanmin(tau))
+#    samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+#    log_prob_samples = sampler.get_log_prob(discard=burnin, flat=True,
+#                                            thin=thin)
+#    log_prior_samples = sampler.get_blobs(discard=burnin, flat=True, thin=thin)
+#
+#    print("burn-in: {0}".format(burnin))
+#    print("thin: {0}".format(thin))
+#    print("flat chain shape: {0}".format(samples.shape))
+#    print("flat log prob shape: {0}".format(log_prob_samples.shape))
+#    print("flat log prior shape: {0}".format(np.shape(log_prior_samples)))
+#
+#    # let's plot the results
+#    # using a try catch because as of testing, log_prior_samples is a NoneType
+#    # object, and I'm not sure why
+#    # XXX: needs fixing so that this just isn't an issue anymore
+#    try:
+#        all_samples = np.concatenate((samples, log_prob_samples[:, None],
+#                                      log_prior_samples[:, None]), axis=1)
+#    except TypeError as e:
+#        print(e)
+#        all_samples = np.concatenate((samples, log_prob_samples[:, None]),
+#                                     axis=1)
 
-    print("burn-in: {0}".format(burnin))
-    print("thin: {0}".format(thin))
-    print("flat chain shape: {0}".format(samples.shape))
-    print("flat log prob shape: {0}".format(log_prob_samples.shape))
-    print("flat log prior shape: {0}".format(np.shape(log_prior_samples)))
-
-    # let's plot the results
-    # using a try catch because as of testing, log_prior_samples is a NoneType
-    # object, and I'm not sure why
-    # XXX: needs fixing so that this just isn't an issue anymore
-    try:
-        all_samples = np.concatenate((samples, log_prob_samples[:, None],
-                                      log_prior_samples[:, None]), axis=1)
-    except TypeError as e:
-        print(e)
-        all_samples = np.concatenate((samples, log_prob_samples[:, None]),
-                                     axis=1)
-
-    return samples, priors, all_samples
+    return samples
 
 
 # =============================================================================
@@ -602,15 +610,14 @@ def main(pool, args):
     masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
-#    if not args.mpi:
     # plot the first 3 moments of each cube
-    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
-    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
-    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
-
-    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+#    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
+#    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
+#    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
+#
+#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
 
     data = ppv_pts(masked_hnc3_2_cube)
 
@@ -618,9 +625,13 @@ def main(pool, args):
     pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
                        [0., 1.5], [1.5, 4.]])
 
-    samples, pos_priors, all_samples = orbital_fitting(pool, data, pspace,
-                                                       nwalkers=100, nmax=5,
-                                                       reset=True)
+    samples = orbital_fitting(pool, data, pspace, nwalkers=32,
+                              nmax=1000, reset=True, mpi=args.mpi)
+
+    plt.hist(samples[:, 0], 100, color='k', histtype='step')
+    plt.xlabel(r"$\theta_1$")
+    plt.ylabel(r"$p(\theta_1)$")
+    plt.gca().set_yticks([]);
 #
 #    # Visualize the fit
 #    print('plotting priors')

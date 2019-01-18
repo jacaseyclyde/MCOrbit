@@ -97,7 +97,8 @@ class Model(object):
             `model_pt`.
 
         """
-        prob = multivariate_normal.pdf(self.data, mean=model_pt, cov=self.cov)
+        prob = multivariate_normal.pdf(self.data, mean=model_pt, cov=self.cov,
+                                       allow_singular=True)
 
         prob[np.isnan(prob)] = 0.0
 
