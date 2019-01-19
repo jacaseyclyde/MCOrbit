@@ -62,7 +62,7 @@ import emcee  # noqa
 from emcee.autocorr import AutocorrError  # noqa
 
 from mcorbit import orbits  # noqa
-from mcorbit.model import Model  # noqa
+from mcorbit.model import ln_prob  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -507,11 +507,8 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True,
     prange = pos_max - pos_min
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
 
-#    # save positions of the priors to return with all data
-#    priors = pos
+    cov = np.cov(data, rowvar=False)
     with pool as pool:
-        m = Model(data, pspace)
-
         if mpi and not pool.is_master():
             pool.wait()
             sys.exit(0)
@@ -524,8 +521,9 @@ def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True,
             # starts simulation over
             backend.reset(nwalkers, ndim)
 
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, m.ln_prob, pool=pool,
-                                        backend=backend)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, ln_prob,
+                                        args=[data, pspace, cov],
+                                        pool=pool, backend=backend)
 
         # full run
         # this also includes the burn in, which we will discard later
@@ -637,7 +635,7 @@ def main(pool, args):
                        [0., 1.5], [1.5, 4.]])
 
     samples = orbital_fitting(pool, data, pspace, nwalkers=32,
-                              nmax=3000, reset=False, mpi=args.mpi)
+                              nmax=100, reset=False, mpi=args.mpi)
 
     plt.hist(samples[:, 0], 100, color='k', histtype='step')
     plt.xlabel(r"$\theta_1$")
