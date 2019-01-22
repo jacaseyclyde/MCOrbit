@@ -11,4 +11,4 @@ module purge
 module load intel-python3
 module load mvapich2-2.2/intel
 
-mpiexec python main.py
+mpiexec python3 main.py

@@ -59,10 +59,10 @@ import corner  # noqa
 import aplpy  # noqa
 
 import emcee  # noqa
-from emcee.autocorr import AutocorrError  # noqa
 
 from mcorbit import orbits  # noqa
 from mcorbit.model import ln_prob  # noqa
+from mcorbit import mcmc
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -410,7 +410,7 @@ def plot_moment(cube, moment, prefix):
     f.save(OUTPATH + filename.format(prefix, moment, FILETYPE))
 
 
-def corner_plot(walkers, prange, filename):
+def corner_plot(walkers, prange):
     """Wrapper function for creating and saving graphs of the parameter space.
 
     Creates and saves a corner plot of the parameter space we are doing MCMC
@@ -432,165 +432,27 @@ def corner_plot(walkers, prange, filename):
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
     fig = corner.corner(walkers,
-                        labels=["$aop$", "$loan$", "$inc$", "$a$", "$e$"],
+                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$",
+                                "log prob", "log prior"],
                         range=prange)
     fig.set_size_inches(12, 12)
 
-    plt.savefig(OUTPATH + STAMP + filename, bbox_inches='tight')
+    plt.savefig(OUTPATH + 'corner.pdf', bbox_inches='tight')
     plt.show()
 
 
-# =============================================================================
-# MCMC functions
-# =============================================================================
+def plot_acor(acor):
+    n = 100 * np.arange(1, len(acor))
 
-def orbital_fitting(pool, data, pspace, nwalkers=100, nmax=500, reset=True,
-                    mpi=False):
-    """Uses MCMC to explore the parameter space specified by `priors`.
-
-    Uses MCMC to fit orbits to the given `data`, exploring the parameter space
-    specified by `priors`.
-
-    Parameters
-    ----------
-    data : :obj:`numpy.ndarray`
-        An array of ppv datapoints. See the returns of :func:`ppv_pts` for more
-        details on the formatting of this array
-    pspace : :obj:`numpy.ndarray`
-        A numpy array specifying the bounds of the parameter space. This should
-        have the form::
-
-            np.array([
-                      [aop_min, aop_max],
-                      [loan_min, loan_max],
-                      [inc_min, inc_max],
-                      [r_per_min, r_per_max],
-                      [r_ap_min, r_ap_max]
-                      ])
-
-        where aop, loan, inc, r_per and r_ap are the parameters we are
-        exploring (argument of pericenter, line of ascending nodes, inclination
-        radius of pericenter, and radius of apocenter, respectively), and the
-        _min and _max postfixes indicate, respectively, the minimum and maximum
-        valuesfor each of these axes in parameter space
-    nwalkers : int, optional
-        The number of walkers to use for parameter space exploration. Default
-        is 100.
-    nmax : int, optional
-        The maximum number of steps to run through. Default is 500.
-    reset : bool, optional
-        If True, the state of the probability space sampler will be reset, and
-        sampling will start from scratch. If False, the sampler will load it's
-        last recorded state, and continue sampling the space from there.
-        Default is True.
-
-    Returns
-    -------
-    samples : array[..., nwalkers, ndim]
-        The positions of all walkers after sampling is complete.
-    priors : array[..., nwalkers, ndim]
-        The positions of all walkers at the start of sampling.
-    all_samples : array[..., nwalkers, ndim, log_prob_samples, log_prob_priors]
-        The positions of all walkers after sampling is complete, as well as the
-        log probabilities of the samples and the priors.
-
-    """
-    # pylint: disable=C0103
-    # TODO: refactor this code
-    # JACC Note: it might just be worth it to rebuild this entire section from
-    # the ground up
-    ndim = pspace.shape[0]
-
-    # Initialize the chain, which is uniformly distributed in parameter space
-    pos_min = pspace[:, 0]
-    pos_max = pspace[:, 1]
-    prange = pos_max - pos_min
-    pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
-
-    cov = np.cov(data, rowvar=False)
-    with pool as pool:
-        if mpi and not pool.is_master():
-            pool.wait()
-            sys.exit(0)
-
-        # Set up backend so we can save chain in case of catastrophe
-        # note that this requires h5py and emcee 3.0.0 on github
-        filename = 'chain.h5'
-        backend = emcee.backends.HDFBackend(filename)
-        if reset:
-            # starts simulation over
-            backend.reset(nwalkers, ndim)
-
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, ln_prob,
-                                        args=[data, pspace, cov],
-                                        pool=pool, backend=backend)
-
-        # full run
-        # this also includes the burn in, which we will discard later
-        # discard based on autocorrelation times
-        old_tau = np.inf
-        autocorr = np.empty(nmax)
-        index = 0
-
-        for sample in sampler.sample(pos, iterations=nmax, progress=True):
-            if sampler.iteration % 100:
-                continue
-
-            # check convergence
-            tau = sampler.get_autocorr_time(tol=0)
-            autocorr[index] = np.mean(tau)
-            index += 1
-
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-            if converged:
-                break
-            old_tau = tau
-
-        n = 100 * np.arange(1, index+1)
-        y = autocorr[:index]
-
-        plt.figure(figsize=FIGSIZE)
-        plt.plot(n, n / 100.0, "--k")
-        plt.plot(n, y)
-        plt.xlim(0, n.max())
-        plt.ylim(0, y.max() + 0.1*(y.max() - y.min()))
-        plt.xlabel("number of steps")
-        plt.ylabel(r"mean $\hat{\tau}$")
-        plt.savefig(OUTPATH + 'autocorr.pdf')
-        plt.show()
-
-        tau = sampler.get_autocorr_time()
-        burnin = int(2*np.max(tau))
-        thin = int(0.5*np.min(tau))
-        samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
-        log_prob_samples = sampler.get_log_prob(discard=burnin,
-                                                flat=True, thin=thin)
-        log_prior_samples = sampler.get_blobs(discard=burnin,
-                                              flat=True, thin=thin)
-
-        print("burn-in: {0}".format(burnin))
-        print("thin: {0}".format(thin))
-        print("flat chain shape: {0}".format(samples.shape))
-        print("flat log prob shape: {0}".format(log_prob_samples.shape))
-        print("flat log prior shape: {0}".format(log_prior_samples.shape))
-
-        all_samples = np.concatenate((
-            samples, log_prob_samples[:, None], log_prior_samples[:, None]
-        ), axis=1)
-
-        labels = list(map(r"$\theta_{{{0}}}$".format, range(1, ndim+1)))
-        labels += ["log prob", "log prior"]
-
-        corner.corner(all_samples, labels=labels)
-
-        print("Mean acceptance fraction: {0:.3f}"
-              .format(np.mean(sampler.acceptance_fraction)))
-
-        print("Mean autocorrelation time: {0:.3f} steps"
-              .format(np.mean(sampler.get_autocorr_time())))
-
-    return samples
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(n, n / 100.0, "--k")
+    plt.plot(n, acor)
+    plt.xlim(0, n.max())
+    plt.ylim(0, acor.max() + 0.1*(acor.max() - acor.min()))
+    plt.xlabel("number of steps")
+    plt.ylabel(r"mean $\hat{\tau}$")
+    plt.savefig(OUTPATH + 'acor.pdf')
+    plt.show()
 
 
 # =============================================================================
@@ -620,13 +482,13 @@ def main(pool, args):
                                      maskfile='HNC3_2.mask.fits')
 
     # plot the first 3 moments of each cube
-#    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
-#    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
-#    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
-#
-#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
+    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
+    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
+
+    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
 
     data = ppv_pts(masked_hnc3_2_cube)
 
@@ -634,13 +496,13 @@ def main(pool, args):
     pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
                        [0., 1.5], [1.5, 4.]])
 
-    samples = orbital_fitting(pool, data, pspace, nwalkers=32,
-                              nmax=100, reset=False, mpi=args.mpi)
+    samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
+                                    nwalkers=args.WALKERS, nmax=args.NMAX,
+                                    reset=False, mpi=args.mpi)
 
-    plt.hist(samples[:, 0], 100, color='k', histtype='step')
-    plt.xlabel(r"$\theta_1$")
-    plt.ylabel(r"$p(\theta_1)$")
-    plt.gca().set_yticks([]);
+    plot_acor(acor)
+    corner_plot(samples, pspace)
+
 #
 #    # Visualize the fit
 #    print('plotting priors')
@@ -670,7 +532,7 @@ def main(pool, args):
     if not os.listdir(OUTPATH):
         os.rmdir(OUTPATH)
 
-    return masked_hnc3_2_cube
+    return
 
 
 if __name__ == '__main__':
@@ -680,6 +542,13 @@ if __name__ == '__main__':
     # Add command line flags
     PARSER.add_argument('-d', '--data_path', action='store',
                         type=str, dest='DATA_PATH', default="~/data/")
+    PARSER.add_argument('--nmax', dest='NMAX', action='store',
+                        help='maximum number of iterations',
+                        default=1000, type=int)
+    PARSER.add_argument('-w', '--walkers', dest='WALKERS', action='store',
+                        help='number of walkers to use',
+                        default=100, type=int)
+
     GROUP = PARSER.add_mutually_exclusive_group()
     GROUP.add_argument("--ncores", dest="n_cores", default=1,
                        type=int, help="Number of processes "
@@ -689,5 +558,6 @@ if __name__ == '__main__':
     args = PARSER.parse_args()
 
     pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+
     main(pool, args)
 #    pass
