@@ -492,9 +492,19 @@ def main(pool, args):
 
     data = ppv_pts(masked_hnc3_2_cube)
 
-    # set up priors and do MCMC
-    pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
-                       [0., 1.5], [1.5, 4.]])
+    # set up priors and do MCMC. angular momentum bounds are based on
+    # the maximum radius
+    p_aop = [55., 65.]  # argument of periapsis
+    p_loan = [130., 140.]  # longitude of ascending node
+    p_inc = [295., 305.]  # inclination
+    p_r0 = [.5, 20.]  # starting radial distance
+    p_l = [0., np.sqrt(2 * orbits.G * orbits.mass(p_r0[1]))]  # ang. mom.
+    pspace = np.array([p_aop,
+                       p_loan,
+                       p_inc,
+                       p_r0,
+                       p_l
+                       ])
 
     samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                     nwalkers=args.WALKERS, nmax=args.NMAX,

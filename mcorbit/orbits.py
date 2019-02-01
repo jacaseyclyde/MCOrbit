@@ -39,7 +39,7 @@ from astropy.constants import G
 from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import Axes3D  # noqa
 
 # =============================================================================
 # =============================================================================
@@ -48,7 +48,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # =============================================================================
 
 # =============================================================================
-# User defined constants
+# User definable constants
 # =============================================================================
 TSTEP = 500 * u.yr  # timestep
 FIGSIZE = (12, 12)
@@ -168,6 +168,90 @@ def potential(dist):
         return - G * mass(dist) / dist
 
 
+@np.vectorize
+def angular_momentum(r1, r2):
+    """Calculates the angular momentum per unit mass for given apsides.
+
+    Calculates the angular momentum per unit mass required for a system
+    to have the given apsides.
+
+    Parameters
+    ----------
+    r1 : float
+        One of the apsides for the system, with units of length. If no
+        units are given, parsecs are assumed.
+    r2 : float
+        The other apside for the system, with units of length. If no
+        units are given, parsecs are assumed.
+
+    Returns
+    -------
+    float
+        Angular momentum per unit mass, in units of pc^2 / yr
+
+    Todo
+    ----
+    - Figure out what's wrong with this calculation (too small initially)
+
+    """
+    try:
+        if r1.unit != u.pc:
+            try:
+                r1 = r1.to(u.pc)
+            except u.UnitConversionError as e:
+                raise e
+    except AttributeError as e:
+        # Assume units in pc if no units given
+        r1 = r1 * u.pc
+
+    try:
+        if r2.unit != u.pc:
+            try:
+                r2 = r2.to(u.pc)
+            except u.UnitConversionError as e:
+                raise e
+    except AttributeError as e:
+        # Assume units in pc if no units given
+        r2 = r2 * u.pc
+
+    if r1 == r2:
+        return (r1 * np.sqrt(-1 * potential(r1) - G * mass_grad(r1))).value
+
+    E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
+         / ((r2 ** 2) - (r1 ** 2)))
+
+#    return np.sqrt(2 * (((r2 ** -2) - (r1 ** -2)) ** -1)
+#                   * (potential(r2) - potential(r1)))
+    return (r1 * np.sqrt(2 * (E - potential(r1)))).value
+
+
+@np.vectorize
+def V_eff(r, l):
+    """The effective potential.
+
+    Calculates the effective potential at a point, given the angular
+    angular momentum per unit mass.
+
+    Parameters
+    ----------
+    r : float
+        The point at which to calculate the effective potential.
+    l : float
+        The angular momentum per unit mass.
+
+    Returns
+    -------
+    float
+        The effective potential for a particle of unit mass with
+        angular momentum `l` at point `r`
+
+    """
+    if r == 0. or r ** 2 == 0:
+        return np.inf
+    V_l = (l ** 2) / (2 * (r ** 2))
+    return V_l + potential(r).value
+
+
 def mass_grad(dist, interp=M_GRAD_INTERP):
     """Automates calculation of the mass gradient.
 
@@ -238,113 +322,6 @@ def potential_grad(dist):
 
 
 @np.vectorize
-def angular_momentum(r1, r2):
-    """Calculates the angular momentum per unit mass for given apsides.
-
-    Calculates the angular momentum per unit mass required for a system
-    to have the given apsides.
-
-    Parameters
-    ----------
-    r1 : float
-        One of the apsides for the system, with units of length. If no
-        units are given, parsecs are assumed.
-    r2 : float
-        The other apside for the system, with units of length. If no
-        units are given, parsecs are assumed.
-
-    Returns
-    -------
-    float
-        Angular momentum per unit mass, in units of pc^2 / yr
-
-    Todo
-    ----
-    - Figure out what's wrong with this calculation (too small initially)
-
-    """
-    try:
-        if r1.unit != u.pc:
-            try:
-                r1 = r1.to(u.pc)
-            except u.UnitConversionError as e:
-                raise e
-    except AttributeError as e:
-        # Assume units in pc if no units given
-        r1 = r1 * u.pc
-
-    try:
-        if r2.unit != u.pc:
-            try:
-                r2 = r2.to(u.pc)
-            except u.UnitConversionError as e:
-                raise e
-    except AttributeError as e:
-        # Assume units in pc if no units given
-        r2 = r2 * u.pc
-
-    if r1 == r2:
-        return (r1 * np.sqrt(-1 * potential(r1) - G * mass_grad(r1))).value
-
-    E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
-         / ((r2 ** 2) - (r1 ** 2)))
-
-#    return np.sqrt(2 * (((r2 ** -2) - (r1 ** -2)) ** -1)
-#                   * (potential(r2) - potential(r1)))
-    return (r1 * np.sqrt(2 * (E - potential(r1)))).value
-
-
-def centrifugal_acceleration(dist, l_cons):
-    """The centrifugal pseudo-acceleration.
-
-    The acceleration in the radial direction due to a centrifugal
-    pseudo-force.
-
-    Parameters
-    ----------
-    dist : float
-        The distance at which to calculate this acceleration, in units
-        of parsecs
-    l_cons : float
-        The angular momentum per unit mass, in units of parsec^2 / year
-
-    Returns
-    -------
-    float
-        The centrifugal "acceleration", in units of parsecs / year^2
-
-    """
-    return (l_cons ** 2) / (dist ** 3)
-
-
-@np.vectorize
-def V_eff(r, l):
-    """The effective potential.
-
-    Calculates the effective potential at a point, given the angular
-    angular momentum per unit mass.
-
-    Parameters
-    ----------
-    r : float
-        The point at which to calculate the effective potential.
-    l : float
-        The angular momentum per unit mass.
-
-    Returns
-    -------
-    float
-        The effective potential for a particle of unit mass with
-        angular momentum `l` at point `r`
-
-    """
-    if r == 0. or r ** 2 == 0:
-        return np.inf
-    V_l = (l ** 2) / (2 * (r ** 2))
-    return V_l + potential(r).value
-
-
-@np.vectorize
 def V_eff_grad(r, l):
     """The gradient of the effective potential.
 
@@ -368,26 +345,22 @@ def V_eff_grad(r, l):
     """
     if r == 0. or r ** 2 == 0:
         return np.inf
-    return - centrifugal_acceleration(r, l) + potential_grad(r).value
+    return (- (l ** 2) / (r ** 3)) + potential_grad(r).value
 
 
-def orbit(r1, r2):
+def orbit(r0, l_cons):
     """Generates orbits.
 
-    Orbit generator that integrates orbits around Sgr A*. Integrated
-    orbits are necessary due to the presence of a distributed central
-    mass function. The mass distribution is assumed to be spherical.
+    Orbit generator that integrates orbits around Sgr A*. Assumes a
+    spherical potential and that orbits are bound.
 
     Parameters
     ----------
-    r1 : float
-        The first apside. May be either periapsis or apoapsis. Units of
-        parsecs.
-    r2 : float
-        The second apside. May be either periapsis or apoapsis. Units
-        of parsecs.
-    tstep : float
-        The timestep to use, in years.
+    r0 : float
+        The initial position. Specifically, the radial distance between
+        Sgr A* and an (arbitrary) apside.
+    l_cons : float
+        The angular momentum per unit mass associated with the orbit.
 
     Returns
     -------
@@ -405,39 +378,29 @@ def orbit(r1, r2):
         period.
 
     """
-    # pylint: disable=E1101
-    # force the order of apsides such that r1 = periapsis
-    if r1 > r2:
-        (r1, r2) = (r2, r1)
-
     # sticking to 2D polar for initial integration since z = 0
-    r1 *= u.pc
-    r2 *= u.pc
-    r_pos = np.array([r1.value]) * u.pc
+    r0 *= u.pc
+    r_pos = np.array([r0.value]) * u.pc
     r_vel = np.array([0.]) * u.pc / u.yr
 
     ang_pos = np.array([0.]) * u.rad
 
-    l_cons = angular_momentum(r1.value, r2.value) * (u.pc ** 2) / u.yr
+    l_cons *= (u.pc ** 2) / u.yr
 
-    ang_v0 = l_cons / (r1 ** 2) * u.rad
+    ang_v0 = l_cons / (r0 ** 2) * u.rad
     ang_vel = np.array([ang_v0.value]) * u.rad / u.yr
 
     while ang_pos[-1] < 2 * np.pi * u.rad:
         # radial portion first
         # first drift
         r_half = r_pos[-1] + 0.5 * TSTEP * r_vel[-1]
-#        r_half = round(r_half.value, 3) * u.pc
 
         # kick
-        a_centrifugal = centrifugal_acceleration(r_half, l_cons)
-        r_vel_new = r_vel[-1] + TSTEP * (a_centrifugal
+        r_vel_new = r_vel[-1] + TSTEP * ((l_cons ** 2) / (r_half ** 3)
                                          - potential_grad(r_half))
-#        r_vel_new = round(r_vel_new.value, 3) * u.pc / u.yr
 
         # second drift
         r_new = r_half + 0.5 * TSTEP * r_vel_new
-#        r_new = round(r_new.value, 3) * u.pc  # significant figures
         r_pos = np.append(r_pos.value, r_new.value) * u.pc
         r_vel = np.append(r_vel.value, r_vel_new.value) * u.pc / u.yr
 
@@ -447,9 +410,6 @@ def orbit(r1, r2):
         ang_new = ang_half + 0.5 * TSTEP * ang_vel_new
         ang_pos = np.append(ang_pos.value, ang_new.value) * u.rad
         ang_vel = np.append(ang_vel.value, ang_vel_new.value) * u.rad / u.yr
-
-        if r_pos[-1] > 1.5 * r2:
-            break
 
     return r_pos, r_vel, ang_pos, ang_vel
 
@@ -530,24 +490,6 @@ def orbit_rotator(pos, vel, aop, loan, inc):
         The 3D velocities of the orbit in galactocentric coordinates
 
     """
-
-#    T = np.array([[np.cos(loan) * np.cos(aop) - np.sin(loan) * np.sin(aop)
-#                  * np.cos(inc),
-#                  - np.sin(loan) * np.cos(aop) - np.cos(loan) * np.sin(aop)
-#                  * np.cos(inc),
-#                  np.sin(aop) * np.sin(inc)],
-#
-#                  [np.cos(loan) * np.sin(aop) + np.sin(loan) * np.cos(aop)
-#                  * np.cos(inc),
-#                  - np.sin(loan) * np.sin(aop) + np.cos(loan) * np.cos(aop)
-#                  * np.cos(inc),
-#                  - np.cos(aop) * np.sin(inc)],
-#
-#                  [np.sin(loan) * np.sin(inc),
-#                   np.cos(loan) * np.sin(inc),
-#                   np.cos(inc)]])
-#
-#    return T
     c_aop, s_aop = np.cos(aop), np.sin(aop)
     c_loan, s_loan = np.cos(loan), np.sin(loan)
     c_inc, s_inc = np.cos(inc), np.sin(inc)
@@ -610,8 +552,8 @@ def model(theta):
     theta : (aop, loan, inc, r_per, r_ap)
 
     """
-    aop, loan, inc, r_per, r_ap = theta
-    pos, vel = polar_to_cartesian(*orbit(r_per, r_ap))
+    aop, loan, inc, r0, l_cons = theta
+    pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
     return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
@@ -757,7 +699,7 @@ def plot_potential_grad(r1, r2):
     return potential_grad_r
 
 
-def plot_V_eff(r1, r2):
+def plot_V_eff(r1, r2, l_cons):
     """Plot the effective potential.
 
     Plot the effective potential for a particle whose apsides are at
@@ -776,13 +718,13 @@ def plot_V_eff(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
 
     plt.figure(figsize=FIGSIZE)
-    plt.plot(r_pos, V_eff(r_pos, angular_momentum(r1, r2)))
-    plt.title("$V_{\\mathrm{eff}}(r)$ vs. $r$")
+    plt.plot(r_pos, V_eff(r_pos, l_cons))
+    plt.title("$V_{\\mathrm{eff}}(r)$ vs. $r$, lmax")
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$V_{\\mathrm{eff}} [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
     plt.grid()
     save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
-                             'V_eff_r.pdf')
+                             'V_eff_r_lmax.pdf')
     plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
@@ -893,83 +835,64 @@ def main():
     r2 = 20.
 
     # set up gridspace of apsides
-    n_pts = 20
+    n_pts = 100
     rr = np.linspace(r1, r2, num=n_pts)
     rr1 = np.linspace(r1, r2, num=n_pts)
     rr2 = np.linspace(r1, r2, num=n_pts)
     rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
 
-#    l_cons = angular_momentum(rr1, rr2)
-#
-#    fig = plt.figure(figsize=FIGSIZE)
-#    ax = fig.gca(projection='3d')
-#    ax.plot_surface(rr1, rr2, l_cons)
-#    ax.set_xlabel('$r_{1}$')
-#    ax.set_ylabel('$r_{2}$')
-#    ax.set_zlabel('$l$')
-#    plt.title("$l$ vs. $r_1, r_2$")
-#    save_path = os.path.join(os.path.dirname(__file__), 'l_cons.pdf')
-#    plt.savefig(save_path, bbox_inches='tight')
-#    plt.show()
-#
-#    l_range = np.linspace(0., np.max(l_cons), num=n_pts)
-#    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
-#
-#    V_eff_r = V_eff(rr, ll)
-#
-#    fig = plt.figure(figsize=FIGSIZE)
-#    ax = fig.gca(projection='3d')
-#    ax.plot_surface(rr, ll, V_eff_r)
-#    ax.set_xlabel('$r$')
-#    ax.set_ylabel('$l$')
-#    ax.set_zlabel('$V_{eff}$')
-#    plt.title("$V_{eff}$ vs. $r, l$")
-#    save_path = os.path.join(os.path.dirname(__file__), 'V_eff.pdf')
-#    plt.savefig(save_path, bbox_inches='tight')
-#    plt.show()
+    l_max = np.sqrt(2 * G * r1 * mass(r1)).value
+    l_min = np.sqrt((r1 ** 3) * potential_grad(r1)).value
 
-    mass_r = plot_mass(r1, r2)
-    mass_grad_r = plot_mass_grad(r1, r2)
-    potential_r = plot_potential(r1, r2)
+    plot_mass(r1, r2)
+    plot_mass_grad(r1, r2)
+    plot_potential(r1, r2)
     potential_grad_r = plot_potential_grad(r1, r2)
-    plot_V_eff(r1, r2)
-    plot_V_eff_grad(r1, r2)
-#
-#    V_eff_r = V_eff(rr, rr1, rr2)
-#
-#    fig = plt.figure(figsize=FIGSIZE)
-#    ax = fig.gca(projection='3d')
-#    ir2 = -1
-#    surf = ax.plot_surface(rr[:, :, ir2], rr1[:, :, ir2], V_eff_r[:, :, ir2])
-#    ax.set_xlabel('$r$')
-#    ax.set_ylabel('$r_{1}$')
-#    ax.set_zlabel('$V_{eff}$')
-#    plt.title("$V_e$ vs. $r, r_1, r_2 = {0:.3f}$".format(rr2[0, 0, ir2]))
-#    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_r_r2.pdf')
-#    plt.savefig(save_path, bbox_inches='tight')
+    plot_V_eff(r1, r2, l_max)
+#    plot_V_eff_grad(r1, r2)
+
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [np.sqrt(2 * G * r * mass(r)).value for r in rr])
+#    plt.title("Mass limits")
+#    plt.ylabel("$\\sqrt{-2 G r_{0} M(r_{0})}$")
+#    plt.grid()
 #    plt.show()
 #
-#    fig = plt.figure(figsize=FIGSIZE)
-#    ax = fig.gca(projection='3d')
-#    ir1 = 0
-#    surf = ax.plot_surface(rr[:, ir1, :], rr2[:, ir1, :], V_eff_r[:, ir1, :])
-#    ax.set_xlabel('$r$')
-#    ax.set_ylabel('$r_{2}$')
-#    ax.set_zlabel('$V_{eff}$')
-#    plt.title("$V_e$ vs. $r, r_2, r_1 = {0:.3f}$".format(rr2[0, ir1, 0]))
-#    save_path = os.path.join(os.path.dirname(__file__), 'V_eff_Mr_r1.pdf')
-#    plt.savefig(save_path, bbox_inches='tight')
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [r * np.sqrt(-2 * potential(r)).value for r in rr])
+#    plt.title("Potential limits")
+#    plt.xlabel("$r_{0}$")
+#    plt.ylabel("$r_{0} \\sqrt{-2\\Phi(r_{0})}$")
+#    plt.grid()
 #    plt.show()
 
-#    plot_orbit(r1, r2)
+    l_range = np.linspace(l_min, l_max, num=n_pts)
+    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
 
-    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2)
+    V_eff_r = V_eff(rr, ll)
 
-    print("r_1 = {0:.4f}".format(r1))
-    print("r_2 = {0:.4f}".format(r2))
-    print("r_max = {0:.4f}".format(np.max(r_pos)))
-    print("r_min = {0:.4f}".format(np.min(r_pos)))
+    fig = plt.figure(figsize=FIGSIZE)
+    ax = fig.gca(projection='3d')
+    ax.plot_surface(rr, ll, V_eff_r)
+    ax.set_xlabel('$r$')
+    ax.set_ylabel('$l$')
+    ax.set_zlabel('$V_{eff}$')
+    plt.title("$V_{eff}$ vs. $r, l$")
+    save_path = os.path.join(os.path.dirname(__file__), 'V_eff.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.show()
+
+    plot_orbit(r1, angular_momentum(r1, r2))
+
+#    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2)
+#
+#    print("r_1 = {0:.4f}".format(r1))
+#    print("r_2 = {0:.4f}".format(r2))
+#    print("r_max = {0:.4f}".format(np.max(r_pos)))
+#    print("r_min = {0:.4f}".format(np.min(r_pos)))
+
+#    return potential_grad_r
 
 
 if __name__ == '__main__':
-    main()
+    p_grad_r = main()
