@@ -69,18 +69,18 @@ M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
 M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
 
-M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
-                        kind='cubic', fill_value='extrapolate')
-M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
-                         kind='cubic', fill_value='extrapolate')
-
 # uncomment to use point mass equal to mass enclosed at ~1pc
 #M_ENC = len(M_ENC) * [M_ENC[175]]  # 1pc away from Sgr A*
 #M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
 
-## uncomment to use point mass equal to mass enclosed at ~5pc
+# uncomment to use point mass equal to mass enclosed at ~5pc
 #M_ENC = len(M_ENC) * [M_ENC[240]]  # 5pc away from Sgr A*
 #M_GRAD = np.zeros(len(M_ENC)) * u.Msun / u.pc
+
+M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
+                        kind='cubic', fill_value='extrapolate')
+M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
+                         kind='cubic', fill_value='extrapolate')
 
 
 # =============================================================================
@@ -450,10 +450,12 @@ def polar_to_cartesian(r_pos, r_vel, ang_pos, ang_vel):
                     r_pos * np.sin(ang_pos),
                     [0.] * len(r_pos)])
 
-    vel = np.array([r_vel * np.cos(ang_pos)
-                    - r_pos * ang_vel * np.sin(ang_pos) / u.rad,
-                    r_vel * np.sin(ang_pos)
-                    + r_pos * ang_vel * np.cos(ang_pos) / u.rad,
+    vel = np.array([(r_vel * np.cos(ang_pos)
+                    - r_pos * ang_vel * np.sin(ang_pos)
+                    / u.rad).to(u.km / u.s),
+                    (r_vel * np.sin(ang_pos)
+                    + r_pos * ang_vel * np.cos(ang_pos)
+                    / u.rad).to(u.km / u.s),
                     [0.] * len(r_vel)])
 
     return pos, vel
@@ -490,6 +492,10 @@ def orbit_rotator(pos, vel, aop, loan, inc):
         The 3D velocities of the orbit in galactocentric coordinates
 
     """
+    aop = np.radians(aop)
+    loan = np.radians(loan)
+    inc = np.radians(inc)
+
     c_aop, s_aop = np.cos(aop), np.sin(aop)
     c_loan, s_loan = np.cos(loan), np.sin(loan)
     c_inc, s_inc = np.cos(inc), np.sin(inc)
@@ -541,7 +547,7 @@ def sky_coords(pos, vel):
 # =============================================================================
 # The model function
 # =============================================================================
-def model(theta):
+def model(theta, coords=False):
     """Model generator.
 
     Generates model orbits around Sgr A*, as seen from the FK5
@@ -556,14 +562,17 @@ def model(theta):
     pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
-    return np.array([c.ra.rad, c.dec.rad, c.radial_velocity.value]).T
+    if coords:
+        return c
+    return np.array([c.ra.rad, c.dec.rad,
+                     c.radial_velocity.value]).T
 
 
 # =============================================================================
 # Plotting functions
 # =============================================================================
-def plot_orbit(r1, r2):
-    pos, _ = polar_to_cartesian(*orbit(r1, r2))
+def plot_orbit(r0, l_cons):
+    pos, _ = polar_to_cartesian(*orbit(r0, l_cons))
 
     plt.figure(figsize=FIGSIZE)
     plt.plot(pos[0, :], pos[1, :], 'b-', label="Gas Core")
@@ -699,7 +708,7 @@ def plot_potential_grad(r1, r2):
     return potential_grad_r
 
 
-def plot_V_eff(r1, r2, l_cons):
+def plot_V_eff(r1, r2, l_cons, post=None):
     """Plot the effective potential.
 
     Plot the effective potential for a particle whose apsides are at
@@ -716,20 +725,28 @@ def plot_V_eff(r1, r2, l_cons):
 
     """
     r_pos = np.linspace(r1, r2, num=100)
+    V = V_eff(r_pos, l_cons)
+
+    title = "$V_{\\mathrm{eff}}(r)$ vs. $r$"
+    if post is not None:
+        title += ", " + post
 
     plt.figure(figsize=FIGSIZE)
-    plt.plot(r_pos, V_eff(r_pos, l_cons))
-    plt.title("$V_{\\mathrm{eff}}(r)$ vs. $r$, lmax")
+    plt.plot(r_pos, V)
+    plt.title(title)
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$V_{\\mathrm{eff}} [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
     plt.grid()
     save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
-                             'V_eff_r_lmax.pdf')
+                             'V_eff_r{0}.pdf'.format("_" + post if post
+                                                     is not None else ""))
     plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
+    return V
 
-def plot_V_eff_grad(r1, r2):
+
+def plot_V_eff_grad(r1, r2, l_cons, post=None):
     """Plot the effective potential.
 
     Plot the effective potential for a particle whose apsides are at
@@ -746,21 +763,29 @@ def plot_V_eff_grad(r1, r2):
 
     """
     r_pos = np.linspace(r1, r2, num=100)
+    V_grad = V_eff_grad(r_pos, l_cons)
+
+    title = "$\\nabla V_{\\mathrm{eff}}(r)$ vs. $r$"
+    if post is not None:
+        title += ", " + post
 
     plt.figure(figsize=FIGSIZE)
-    plt.plot(r_pos, V_eff_grad(r_pos, angular_momentum(r1, r2)))
-    plt.title("$\\nabla V_{\\mathrm{eff}}(r)$ vs. $r$")
+    plt.plot(r_pos, V_grad)
+    plt.title(title)
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$\\nabla V_{\\mathrm{eff}} "
                "[\\mathrm{pc} / \\mathrm{yr}^{2}]$")
     plt.grid()
     save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
-                             'V_eff_grad_r.pdf')
+                             'V_eff_grad{0}.pdf'.format("_" + post if post
+                                                        is not None else ""))
     plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
+    return V_grad
 
-def plot_acceleration(r1, r2):
+
+def plot_acceleration(r1, r2, l_cons):
     """Plot the acceleration.
 
     Plot the acceleration from `r1` to `r2`.
@@ -776,7 +801,7 @@ def plot_acceleration(r1, r2):
     r_pos = np.linspace(r1, r2, num=100)
     potential_grad_r = [potential_grad(r).value for r in r_pos]
 
-    l_cons = angular_momentum(r1, r2) * (u.pc ** 2) / u.yr
+    l_cons = l_cons * (u.pc ** 2) / u.yr
     a_l = ((l_cons ** 2) / (r_pos ** 3)).value
 
     a = a_l - potential_grad_r
@@ -832,24 +857,77 @@ def plot_velocity(r1, r2):
 def main():
     # set initial variables
     r1 = .5
-    r2 = 20.
+    r2 = 2.
+    rmax = 8.
 
     # set up gridspace of apsides
     n_pts = 100
-    rr = np.linspace(r1, r2, num=n_pts)
-    rr1 = np.linspace(r1, r2, num=n_pts)
-    rr2 = np.linspace(r1, r2, num=n_pts)
+    rr = np.linspace(r1, rmax, num=n_pts)
+    rr1 = np.linspace(r1, rmax, num=n_pts)
+    rr2 = np.linspace(r1, rmax, num=n_pts)
     rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
 
-    l_max = np.sqrt(2 * G * r1 * mass(r1)).value
-    l_min = np.sqrt((r1 ** 3) * potential_grad(r1)).value
+#    l_max = (.5 ** 3) * np.sqrt(2 * G * (r20) * mass(r20)).value
+#    l_max = np.sqrt((rmax ** 3) * potential_grad(rmax)).value
+    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
+                                 / ((rmax ** 2) - (r2 ** 2)))).value
 
-    plot_mass(r1, r2)
-    plot_mass_grad(r1, r2)
-    plot_potential(r1, r2)
-    potential_grad_r = plot_potential_grad(r1, r2)
-    plot_V_eff(r1, r2, l_max)
-#    plot_V_eff_grad(r1, r2)
+#    l_min = np.sqrt((r1 ** 3) * potential_grad(r1)).value
+    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
+                               / ((r2 ** 2) - (r1 ** 2)))).value
+
+    print("l_min = {0}".format(l_min))
+    print("l_max = {0}".format(l_max))
+
+    bounds = [(r ** 3) * potential_grad(r).value for r in rr]
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, bounds)
+    plt.hlines([l_min ** 2, l_max ** 2], r1, rmax)
+    plt.title("$l^{2} = r^{3} \\nabla \\Phi(r)$")
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, [potential(r).value for r in rr], 'k-', label='Potential')
+    plt.plot(rr, [V_eff(r, l_min) for r in rr], 'r-', label='V_eff, lmin')
+    plt.plot(rr, [(l_min ** 2) / (2 * (r ** 2)) for r in rr], 'r--', alpha=0.5,
+             label='$l_{min}^{2} / 2 r^{2}$')
+    plt.plot(rr, [V_eff(r, l_max) for r in rr], 'b-', label='V_eff, lmax')
+    plt.plot(rr, [(l_max ** 2) / (2 * (r ** 2)) for r in rr], 'b--', alpha=0.5,
+             label='$l_{max}^{2} / 2 r^{2}$')
+    plt.hlines(V_eff(rmax, l_max), r1, rmax)
+    plt.vlines([r1, r2, rmax], *plt.ylim())
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
+             label='Potential Grad')
+    plt.plot(rr, [-V_eff_grad(r, l_min) for r in rr], 'r-',
+             label='V_eff_grad, lmin')
+    plt.plot(rr, [(l_min ** 2) / (r ** 3) for r in rr], 'r--', alpha=0.5,
+             label='$l_{min}^{2} / r^{3}$')
+    plt.plot(rr, [-V_eff_grad(r, l_max) for r in rr], 'b-',
+             label='V_eff_grad, lmax')
+    plt.plot(rr, [(l_max ** 2) / (r ** 3) for r in rr], 'b--', alpha=0.5,
+             label='$l_{max}^{2} / r^{3}$')
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+#    plot_potential_grad(r1, rmax)
+#    plot_acceleration(r1, rmax, l_min)
+#    plot_acceleration(r1, rmax, l_max)
+
+#    plot_mass(r1, r20)
+#    plot_mass_grad(r1, r20)
+#    plot_potential(r1, r20)
+#    potential_grad_r = plot_potential_grad(r1, r20)
+#    V_max = plot_V_eff(r1, rmax, l_max, post='lmax')
+#    V_grad_max = plot_V_eff_grad(r1, rmax, l_max, post='lmax')
+#    V_min = plot_V_eff(r1, rmax, l_min, post='lmin')
+#    V_grad_min = plot_V_eff_grad(r1, rmax, l_min, post='lmin')
 
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [np.sqrt(2 * G * r * mass(r)).value for r in rr])
@@ -866,23 +944,43 @@ def main():
 #    plt.grid()
 #    plt.show()
 
-    l_range = np.linspace(l_min, l_max, num=n_pts)
-    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
+#    l_range = np.linspace(l_min, l_max, num=n_pts)
+#    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
+#
+#    V_eff_r = V_eff(rr, ll)
+#
+#    fig = plt.figure(figsize=FIGSIZE)
+#    ax = fig.gca(projection='3d')
+#    ax.plot_surface(rr, ll, V_eff_r)
+#    ax.set_xlabel('$r$')
+#    ax.set_ylabel('$l$')
+#    ax.set_zlabel('$V_{eff}$')
+#    ax.set_zlim3d(top=0.)
+#    plt.title("$V_{eff}$ vs. $r, l$")
+#    save_path = os.path.join(os.path.dirname(__file__), '..',
+#                             'out', 'V_eff.pdf')
+#    plt.savefig(save_path, bbox_inches='tight')
+#    plt.show()
+#
+#    V_eff_grad_r = V_eff_grad(rr, ll)
+#
+#    fig = plt.figure(figsize=FIGSIZE)
+#    ax = fig.gca(projection='3d')
+#    ax.plot_surface(rr, ll, V_eff_grad_r)
+##    ax.plot_surface(rr, ll, np.zeros_like(V_eff_grad_r),
+##                    color='orange')
+#    ax.set_xlabel('$r$')
+#    ax.set_ylabel('$l$')
+#    ax.set_zlabel('$\\nabla V_{eff}$')
+#    ax.set_xlim3d(left=6.)
+#    ax.set_zlim3d(bottom=-1e-9, top=1e-9)
+#    plt.title("$\\nabla V_{eff}$ vs. $r, l$")
+#    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+#                             'V_eff_grad.pdf')
+#    plt.savefig(save_path, bbox_inches='tight')
+#    plt.show()
 
-    V_eff_r = V_eff(rr, ll)
-
-    fig = plt.figure(figsize=FIGSIZE)
-    ax = fig.gca(projection='3d')
-    ax.plot_surface(rr, ll, V_eff_r)
-    ax.set_xlabel('$r$')
-    ax.set_ylabel('$l$')
-    ax.set_zlabel('$V_{eff}$')
-    plt.title("$V_{eff}$ vs. $r, l$")
-    save_path = os.path.join(os.path.dirname(__file__), 'V_eff.pdf')
-    plt.savefig(save_path, bbox_inches='tight')
-    plt.show()
-
-    plot_orbit(r1, angular_momentum(r1, r2))
+#    plot_orbit(r1, l_min)
 
 #    r_pos, r_vel, ang_pos, ang_vel = orbit(r1, r2)
 #
@@ -891,8 +989,8 @@ def main():
 #    print("r_max = {0:.4f}".format(np.max(r_pos)))
 #    print("r_min = {0:.4f}".format(np.min(r_pos)))
 
-#    return potential_grad_r
+    return V_min, V_grad_min, V_max, V_grad_max, bounds
 
 
 if __name__ == '__main__':
-    p_grad_r = main()
+    V_min, V_grad_min, V_max, V_grad_max, bounds = main()

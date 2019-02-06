@@ -100,14 +100,26 @@ def ln_prior(theta, space):
 
     """
     prior = 1.
+
+    # first check that all parameters are within our parameter space
     for i in range(space.shape[0]):
         pmin = min(space[i])
         pmax = max(space[i])
 
-        if theta[i] < pmin or theta[i] > pmax:
+        if theta[i] < pmin or theta[i]:
             prior *= 0.
         else:
             prior *= (1. / (pmax - pmin))
+
+    # next check bounds based on allowed energies
+    # this is necessary as an add. constraint to prevent unbound orbits
+    # Vmin and Vmax refer to the minimum and maximum radius, not energy
+    V0 = orbits.V_eff(theta[-2], theta[-1])
+    Vmin = orbits.V_eff(min(space[-2]), theta[-1])
+    Vmax = orbits.V_eff(max(space[-2]), theta[-1])
+
+    if V0 > Vmin or V0 > Vmax:
+        prior *= 0.
 
     with np.errstate(divide='ignore'):  # suppress divide by zero warnings
         ln_prior = np.log(prior)
