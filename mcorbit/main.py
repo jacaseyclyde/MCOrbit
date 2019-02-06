@@ -297,7 +297,7 @@ def _model_plot(img, mdl, bounds, params, flags):
     return fig
 
 
-def plot_model(cube, params, prefix):
+def plot_model(cube, prefix, params):
     """Plots the model in 3 graphs depicting each plane of the ppv space
 
     Plots an orbit model (as defined by `params`) over the data, showing all 3
@@ -324,7 +324,7 @@ def plot_model(cube, params, prefix):
     ra_dec = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
 
     # get the model for the given parameters
-    c = orbits.sky(params)
+    c = orbits.model(params, coords=True)
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
     vel = c.radial_velocity.value
@@ -433,7 +433,7 @@ def corner_plot(walkers, prange):
     # TODO: Fix labels
     fig = corner.corner(walkers,
                         labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$",
-                                "log prob", "log prior"],
+                                "log prob"], #, "log prior"],
                         range=prange)
     fig.set_size_inches(12, 12)
 
@@ -442,7 +442,7 @@ def corner_plot(walkers, prange):
 
 
 def plot_acor(acor):
-    n = 100 * np.arange(1, len(acor))
+    n = 100 * np.arange(1, len(acor) + 1)
 
     plt.figure(figsize=FIGSIZE)
     plt.plot(n, n / 100.0, "--k")
@@ -476,25 +476,51 @@ def main(pool, args):
     except FileExistsError:
         pass
 
+    print("Loading Data...")
     # load data
     hnc3_2_cube = import_data(cubefile='HNC3_2.fits', maskfile=None)
     masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
-    # plot the first 3 moments of each cube
-    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
-    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
-    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
+#    print("Plotting data cube...")
+#    # plot the first 3 moments of each cube
+#    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
+#    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
+#    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
+#
+#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+#
+#    print("Plotting complete!")
 
-    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
-
+    print("Preparing data...")
     data = ppv_pts(masked_hnc3_2_cube)
 
-    # set up priors and do MCMC
-    pspace = np.array([[55., 65.], [130., 140.], [295., 305.],
-                       [0., 1.5], [1.5, 4.]])
+    rmin = 0.5
+    rmid = 2.
+    rmax = 8.
+
+    lmin = (rmin * rmid * np.sqrt((2 * (orbits.potential(rmid)
+                                  - orbits.potential(rmin))) / ((rmid ** 2)
+                                  - (rmin ** 2)))).value
+    lmax = (rmid * rmax * np.sqrt((2 * (orbits.potential(rmax)
+                                  - orbits.potential(rmid))) / ((rmax ** 2)
+                                  - (rmid ** 2)))).value
+
+    # set up priors and do MCMC. angular momentum bounds are based on
+    # the maximum radius
+    p_aop = [55., 65.]  # argument of periapsis
+    p_loan = [130., 140.]  # longitude of ascending node
+    p_inc = [295., 305.]  # inclination
+    p_r0 = [rmin, rmax]  # starting radial distance
+    p_l = [lmin, lmax]  # ang. mom.
+    pspace = np.array([p_aop,
+                       p_loan,
+                       p_inc,
+                       p_r0,
+                       p_l
+                       ])
 
     samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                     nwalkers=args.WALKERS, nmax=args.NMAX,
@@ -503,7 +529,7 @@ def main(pool, args):
     plot_acor(acor)
     corner_plot(samples, pspace)
 
-#
+
 #    # Visualize the fit
 #    print('plotting priors')
 #    corner_plot(pos_priors, priors, 'priors.pdf')
@@ -524,7 +550,8 @@ def main(pool, args):
     # print the best parameters found and plot the fit
 #    print("Best Fit")
 #    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
-#    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
+    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', (60., 135., 300.,
+                                                     rmin, lmin))
 #    t1 = time.time()
 #    print("Runtime: {0}".format(t1 - t0))
 
@@ -532,7 +559,8 @@ def main(pool, args):
     if not os.listdir(OUTPATH):
         os.rmdir(OUTPATH)
 
-    return
+#    return samples
+    return None
 
 
 if __name__ == '__main__':
@@ -559,5 +587,5 @@ if __name__ == '__main__':
 
     pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
 
-    main(pool, args)
+    samples = main(pool, args)
 #    pass

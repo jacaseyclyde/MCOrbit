@@ -134,6 +134,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000,
             if converged:
                 break
             old_tau = tau
+            print(tau)
 
         print("Mean acceptance fraction: {0:.3f}"
               .format(np.mean(sampler.acceptance_fraction)))
@@ -147,24 +148,29 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000,
         try:
             tau = sampler.get_autocorr_time()
         except AutocorrError as e:
-            pass
+            tau = sampler.get_autocorr_time(tol=0)
 
-        burnin = int(2*np.max(tau))
-        thin = int(0.5*np.min(tau))
+        burnin = int(2 * np.nanmax(tau))
+        thin = int(0.5 * np.nanmin(tau))
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
         log_prob_samples = sampler.get_log_prob(discard=burnin,
                                                 flat=True, thin=thin)
         log_prior_samples = sampler.get_blobs(discard=burnin,
                                               flat=True, thin=thin)
 
+        print("tau: {0}".format(tau))
         print("burn-in: {0}".format(burnin))
         print("thin: {0}".format(thin))
         print("flat chain shape: {0}".format(samples.shape))
         print("flat log prob shape: {0}".format(log_prob_samples.shape))
-        print("flat log prior shape: {0}".format(log_prior_samples.shape))
 
-        all_samples = np.concatenate((
+        if log_prior_samples is not None:
+            print("flat log prior shape: {0}".format(log_prior_samples.shape))
+            all_samples = np.concatenate((
             samples, log_prob_samples[:, None], log_prior_samples[:, None]
         ), axis=1)
+        else:
+            all_samples = np.concatenate((
+                samples, log_prob_samples[:, None]), axis=1)
 
     return all_samples, autocorr
