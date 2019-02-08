@@ -36,7 +36,7 @@ import emcee
 from emcee.autocorr import AutocorrError
 
 
-def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000,
+def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000, burn=1000,
                reset=True, mpi=False):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
@@ -94,26 +94,33 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000,
     pos_min = pspace[:, 0]
     pos_max = pspace[:, 1]
     prange = pos_max - pos_min
+#    prange[-1] = .5 * prange[-1]
+#    prange[-2] = .5 * prange[-2]
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
 
     cov = np.cov(data, rowvar=False)
+
+    # Set up backend so we can save chain in case of catastrophe
+    # note that this requires h5py and emcee 3.0.0 on github
+    filename = 'chain.h5'
+    backend = emcee.backends.HDFBackend(filename)
+    if reset:
+        # starts simulation over
+        backend.reset(nwalkers, ndim)
 
     with pool as pool:
         if mpi and not pool.is_master():
             pool.wait()
             sys.exit(0)
 
-        # Set up backend so we can save chain in case of catastrophe
-        # note that this requires h5py and emcee 3.0.0 on github
-        filename = 'chain.h5'
-        backend = emcee.backends.HDFBackend(filename)
-        if reset:
-            # starts simulation over
-            backend.reset(nwalkers, ndim)
-
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
                                         args=[data, pspace, cov], pool=pool,
                                         backend=backend)
+
+        # initial burn-in. this appears to be necessary to avoid
+        # initial NaN issues
+#        pos = sampler.run_mcmc(pos, burn, progress=True)
+#        sampler.reset()
 
         # full run
         # this also includes the burn in, which we will discard later

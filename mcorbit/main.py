@@ -432,8 +432,7 @@ def corner_plot(walkers, prange):
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
     fig = corner.corner(walkers,
-                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$",
-                                "log prob"], #, "log prior"],
+                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$"],
                         range=prange)
     fig.set_size_inches(12, 12)
 
@@ -524,7 +523,7 @@ def main(pool, args):
 
     samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                     nwalkers=args.WALKERS, nmax=args.NMAX,
-                                    reset=False, mpi=args.mpi)
+                                    burn=args.BURN, reset=False, mpi=args.MPI)
 
     plot_acor(acor)
     corner_plot(samples, pspace)
@@ -576,16 +575,19 @@ if __name__ == '__main__':
     PARSER.add_argument('-w', '--walkers', dest='WALKERS', action='store',
                         help='number of walkers to use',
                         default=100, type=int)
+    PARSER.add_argument('-b', '--burn', dest='BURN', action='store',
+                        help='number of initial burn-in iterations',
+                        default=1000, type=int)
 
     GROUP = PARSER.add_mutually_exclusive_group()
-    GROUP.add_argument("--ncores", dest="n_cores", default=1,
+    GROUP.add_argument("--ncores", dest="NCORES", default=1,
                        type=int, help="Number of processes "
                        "(uses multiprocessing).")
-    GROUP.add_argument("--mpi", dest="mpi", default=False,
+    GROUP.add_argument("--mpi", dest="MPI", default=False,
                        action="store_true", help="Run with MPI.")
     args = PARSER.parse_args()
 
-    pool = schwimmbad.choose_pool(mpi=args.mpi, processes=args.n_cores)
+    pool = schwimmbad.choose_pool(mpi=args.MPI, processes=args.NCORES)
 
     samples = main(pool, args)
 #    pass
