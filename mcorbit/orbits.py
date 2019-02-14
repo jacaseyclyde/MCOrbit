@@ -858,7 +858,7 @@ def main():
     # set initial variables
     r1 = .5
     r2 = 2.
-    rmax = 8.
+    rmax = 20.
 
     # set up gridspace of apsides
     n_pts = 100
@@ -867,51 +867,73 @@ def main():
     rr2 = np.linspace(r1, rmax, num=n_pts)
     rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
 
-#    l_max = (.5 ** 3) * np.sqrt(2 * G * (r20) * mass(r20)).value
-#    l_max = np.sqrt((rmax ** 3) * potential_grad(rmax)).value
-    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
-                                 / ((rmax ** 2) - (r2 ** 2)))).value
+#    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
+#                                 / ((rmax ** 2) - (r2 ** 2)))).value
+#
+#    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
+#                               / ((r2 ** 2) - (r1 ** 2)))).value
 
-#    l_min = np.sqrt((r1 ** 3) * potential_grad(r1)).value
-    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
-                               / ((r2 ** 2) - (r1 ** 2)))).value
+#    print("l_min = {0}".format(l_min))
+#    print("l_max = {0}".format(l_max))
+#
+#    bounds = [(r ** 3) * potential_grad(r).value for r in rr]
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, bounds)
+#    plt.hlines([l_min ** 2, l_max ** 2], r1, rmax)
+#    plt.title("$l^{2} = r^{3} \\nabla \\Phi(r)$")
+#    plt.grid()
+#    plt.show()
+#
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [potential(r).value for r in rr], 'k-', label='Potential')
+#    plt.plot(rr, [V_eff(r, l_min) for r in rr], 'r-', label='V_eff, lmin')
+#    plt.plot(rr, [(l_min ** 2) / (2 * (r ** 2)) for r in rr], 'r--', alpha=0.5,
+#             label='$l_{min}^{2} / 2 r^{2}$')
+#    plt.plot(rr, [V_eff(r, l_max) for r in rr], 'b-', label='V_eff, lmax')
+#    plt.plot(rr, [(l_max ** 2) / (2 * (r ** 2)) for r in rr], 'b--', alpha=0.5,
+#             label='$l_{max}^{2} / 2 r^{2}$')
+#    plt.hlines(V_eff(rmax, l_max), r1, rmax)
+#    plt.vlines([r1, r2, rmax], *plt.ylim())
+#    plt.grid()
+#    plt.legend()
+#    plt.show()
+#
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
+#             label='Potential Grad')
+#    plt.plot(rr, [-V_eff_grad(r, l_min) for r in rr], 'r-',
+#             label='V_eff_grad, lmin')
+#    plt.plot(rr, [(l_min ** 2) / (r ** 3) for r in rr], 'r--', alpha=0.5,
+#             label='$l_{min}^{2} / r^{3}$')
+#    plt.plot(rr, [-V_eff_grad(r, l_max) for r in rr], 'b-',
+#             label='V_eff_grad, lmax')
+#    plt.plot(rr, [(l_max ** 2) / (r ** 3) for r in rr], 'b--', alpha=0.5,
+#             label='$l_{max}^{2} / r^{3}$')
+#    plt.grid()
+#    plt.legend()
+#    plt.show()
 
-    print("l_min = {0}".format(l_min))
-    print("l_max = {0}".format(l_max))
-
-    bounds = [(r ** 3) * potential_grad(r).value for r in rr]
+    # plot vc
     plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, bounds)
-    plt.hlines([l_min ** 2, l_max ** 2], r1, rmax)
-    plt.title("$l^{2} = r^{3} \\nabla \\Phi(r)$")
-    plt.grid()
-    plt.show()
-
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, [potential(r).value for r in rr], 'k-', label='Potential')
-    plt.plot(rr, [V_eff(r, l_min) for r in rr], 'r-', label='V_eff, lmin')
-    plt.plot(rr, [(l_min ** 2) / (2 * (r ** 2)) for r in rr], 'r--', alpha=0.5,
-             label='$l_{min}^{2} / 2 r^{2}$')
-    plt.plot(rr, [V_eff(r, l_max) for r in rr], 'b-', label='V_eff, lmax')
-    plt.plot(rr, [(l_max ** 2) / (2 * (r ** 2)) for r in rr], 'b--', alpha=0.5,
-             label='$l_{max}^{2} / 2 r^{2}$')
-    plt.hlines(V_eff(rmax, l_max), r1, rmax)
-    plt.vlines([r1, r2, rmax], *plt.ylim())
+    plt.plot(rr, [np.sqrt((G * mass(r)
+                          / (r * u.pc)).to(u.km ** 2 / u.s ** 2)).value
+                  for r in rr], 'k-',
+             label='$v_{c}$')
+    plt.title("$v_{c}$ vs. $r$")
+    plt.xlabel("$r$ [pc]")
+    plt.ylabel("$v_{c}$ [km / s]")
     plt.grid()
     plt.legend()
     plt.show()
 
+    # plot shear
     plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
-             label='Potential Grad')
-    plt.plot(rr, [-V_eff_grad(r, l_min) for r in rr], 'r-',
-             label='V_eff_grad, lmin')
-    plt.plot(rr, [(l_min ** 2) / (r ** 3) for r in rr], 'r--', alpha=0.5,
-             label='$l_{min}^{2} / r^{3}$')
-    plt.plot(rr, [-V_eff_grad(r, l_max) for r in rr], 'b-',
-             label='V_eff_grad, lmax')
-    plt.plot(rr, [(l_max ** 2) / (r ** 3) for r in rr], 'b--', alpha=0.5,
-             label='$l_{max}^{2} / r^{3}$')
+    plt.plot(rr, [(((r / (2 * mass(r))) * mass_grad(r))).value - .5
+                  for r in rr], 'k-',
+             label='$\\beta$')
+    plt.title("Shear")
+    plt.xlabel("$r$ [pc]")
+    plt.ylabel("$\\beta = \\frac{d\\ln{v_{c}}}{d\\ln{r}}$")
     plt.grid()
     plt.legend()
     plt.show()
@@ -989,8 +1011,10 @@ def main():
 #    print("r_max = {0:.4f}".format(np.max(r_pos)))
 #    print("r_min = {0:.4f}".format(np.min(r_pos)))
 
-    return V_min, V_grad_min, V_max, V_grad_max, bounds
+#    return V_min, V_grad_min, V_max, V_grad_max, bounds
+    return
 
 
 if __name__ == '__main__':
-    V_min, V_grad_min, V_max, V_grad_max, bounds = main()
+#    V_min, V_grad_min, V_max, V_grad_max, bounds = main()
+    main()
