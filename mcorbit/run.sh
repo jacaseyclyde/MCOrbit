@@ -1,7 +1,7 @@
 #!/bin/sh
 #SBATCH --partition=nodes
 #SBATCH -n 100
-#SBATCH --time=3-12:00:00
+#SBATCH --time=4-00:00:00
 #SBATCH --job-name=CNDFIT
 #SBATCH --output=CND.out
 #SBATCH --error=CND.err
