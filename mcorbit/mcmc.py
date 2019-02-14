@@ -141,21 +141,14 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000, burn=1000,
             if converged:
                 break
             old_tau = tau
-            print(tau)
+
+        tau = sampler.get_autocorr_time()
 
         print("Mean acceptance fraction: {0:.3f}"
               .format(np.mean(sampler.acceptance_fraction)))
 
-        try:
-            print("Mean autocorrelation time: {0:.3f} steps"
-                  .format(np.mean(sampler.get_autocorr_time())))
-        except AutocorrError as e:
-            pass
-
-        try:
-            tau = sampler.get_autocorr_time()
-        except AutocorrError as e:
-            tau = sampler.get_autocorr_time(tol=0)
+        print("Mean autocorrelation time: {0:.3f} steps"
+              .format(np.mean(tau)))
 
         burnin = int(2 * np.nanmax(tau))
         thin = int(0.5 * np.nanmin(tau))
