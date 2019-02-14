@@ -106,7 +106,7 @@ def ln_prior(theta, space):
         pmin = min(space[i])
         pmax = max(space[i])
 
-        if theta[i] < pmin or theta[i]:
+        if theta[i] < pmin or theta[i] > pmax:
             prior *= 0.
         else:
             prior *= (1. / (pmax - pmin))
@@ -155,3 +155,6 @@ def ln_prob(theta, data, space, cov):
     lnlike = ln_like(data, orbits.model(theta), cov)
 
     return lnprior + lnlike
+#    log_prior = -0.5 * np.sum((theta - 1.0) ** 2 / 100.0)
+#    log_prob = -0.5 * np.sum(theta**2) + log_prior
+#    return log_prob + log_prior
