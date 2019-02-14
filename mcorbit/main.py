@@ -63,6 +63,7 @@ import emcee  # noqa
 from mcorbit import orbits  # noqa
 from mcorbit.model import ln_prob  # noqa
 from mcorbit import mcmc
+from mcorbit import model
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -481,17 +482,16 @@ def main(pool, args):
     masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
-#    print("Plotting data cube...")
 #    # plot the first 3 moments of each cube
-#    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
-#    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
-#    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
-#
-#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
-#
-#    print("Plotting complete!")
+    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
+    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
+    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
+
+    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+
+    print("Plotting complete!")
 
     print("Preparing data...")
     data = ppv_pts(masked_hnc3_2_cube)
@@ -509,9 +509,9 @@ def main(pool, args):
 
     # set up priors and do MCMC. angular momentum bounds are based on
     # the maximum radius
-    p_aop = [55., 65.]  # argument of periapsis
-    p_loan = [130., 140.]  # longitude of ascending node
-    p_inc = [295., 305.]  # inclination
+    p_aop = [170., 190.]  # argument of periapsis
+    p_loan = [85., 105.]  # longitude of ascending node
+    p_inc = [195., 215.]  # inclination
     p_r0 = [rmin, rmax]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
     pspace = np.array([p_aop,
@@ -528,31 +528,22 @@ def main(pool, args):
     plot_acor(acor)
     corner_plot(samples, pspace)
 
-
-#    # Visualize the fit
-#    print('plotting priors')
-#    corner_plot(pos_priors, priors, 'priors.pdf')
-#    print('plotting results')
-#    corner_plot(samples, priors, 'results.pdf')
-#
 #    # analyze the walker data
-#    aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-#                                      zip(*np.percentile(samples, [16, 50, 84],
-#                                                         axis=0)))
-#    aop = aop[0]
-#    loan = loan[0]
-#    inc = inc[0]
-#    r_per = r_per[0]
-#    r_ap = r_ap[0]
-#    pbest = np.array([aop[0], loan[0], inc[0], r_per[0], r_ap[0]])
+    aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+                                      zip(*np.percentile(samples, [16, 50, 84],
+                                                         axis=0)))
+    aop = aop[0]
+    loan = loan[0]
+    inc = inc[0]
+    r_per = r_per[0]
+    r_ap = r_ap[0]
+    pbest = np.array([aop[0], loan[0], inc[0], r_per[0], r_ap[0]])
 
     # print the best parameters found and plot the fit
-#    print("Best Fit")
-#    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
-    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', (60., 135., 300.,
-                                                     rmin, lmin))
-#    t1 = time.time()
-#    print("Runtime: {0}".format(t1 - t0))
+    print("Best Fit")
+    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
+#    theta = (180., 95., 180. + 25., 2., lmin + 0.8 * (lmax - lmin))
+    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
 
     # bit of cleanup
     if not os.listdir(OUTPATH):
