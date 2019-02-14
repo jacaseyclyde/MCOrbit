@@ -36,7 +36,7 @@ import emcee
 from emcee.autocorr import AutocorrError
 
 
-def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000, burn=1000,
+def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
                reset=True, mpi=False):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
@@ -97,7 +97,6 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000, burn=1000,
 #    prange[-1] = .5 * prange[-1]
 #    prange[-2] = .5 * prange[-2]
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
-
     cov = np.cov(data, rowvar=False)
 
     # Set up backend so we can save chain in case of catastrophe
@@ -134,6 +133,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000, burn=1000,
 
             # check convergence
             tau = sampler.get_autocorr_time(tol=0)
+            print(tau)
             autocorr = np.append(autocorr, np.mean(tau))
 
             converged = np.all(tau * 100 < sampler.iteration)
@@ -141,6 +141,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=1000, burn=1000,
             if converged:
                 break
             old_tau = tau
+            np.savetxt('acor.csv', tau, delimiter=',')
 
         tau = sampler.get_autocorr_time()
 
