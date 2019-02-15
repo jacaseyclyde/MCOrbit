@@ -433,8 +433,8 @@ def corner_plot(walkers, prange):
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
     fig = corner.corner(walkers,
-                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$"],
-                        range=prange)
+                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$",
+			"log prob", "log prior"])
     fig.set_size_inches(12, 12)
 
     plt.savefig(OUTPATH + 'corner.pdf', bbox_inches='tight')

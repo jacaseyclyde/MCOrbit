@@ -149,7 +149,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
               .format(np.mean(sampler.acceptance_fraction)))
 
         print("Mean autocorrelation time: {0:.3f} steps"
-              .format(np.mean(sampler.get_autocorr_time())))
+              .format(np.mean(tau)))
 
         burnin = int(2 * np.nanmax(tau))
         thin = int(0.5 * np.nanmin(tau))
