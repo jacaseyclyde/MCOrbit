@@ -47,6 +47,8 @@ import schwimmbad  # noqa
 
 import numpy as np  # noqa
 
+from scipy.optimize import brentq
+
 import astropy.units as u  # noqa
 from astropy.coordinates import SkyCoord, FK5, ICRS, Angle  # noqa
 
@@ -72,6 +74,10 @@ OUTPATH = '../out/'
 
 FIGSIZE = (10, 10)
 FILETYPE = 'pdf'
+
+GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
+                  dec=Angle('-29:0:28.118 degrees'))
+D_SGR_A = 8. * u.kpc
 
 
 # =============================================================================
@@ -161,9 +167,9 @@ def ppv_pts(cube):
     """
     # pylint: disable=C0103
     # get the moment 1 map and positions, then convert to an array of ppv data
-    moment1 = cube.moment1()
-    dd, rr = moment1.spatial_coordinate_map
-    c = SkyCoord(ra=rr, dec=dd, radial_velocity=moment1, frame='fk5')
+    m1 = cube.moment1()
+    dd, rr = m1.spatial_coordinate_map
+    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
     c = c.ravel()
 
     # convert to numpy array and remove nan velocities
@@ -433,8 +439,7 @@ def corner_plot(walkers, prange):
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
     fig = corner.corner(walkers,
-                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$",
-			"log prob", "log prior"])
+                        labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$"])
     fig.set_size_inches(12, 12)
 
     plt.savefig(OUTPATH + 'corner.pdf', bbox_inches='tight')
@@ -482,7 +487,7 @@ def main(pool, args):
     masked_hnc3_2_cube = import_data(cubefile='HNC3_2.fits',
                                      maskfile='HNC3_2.mask.fits')
 
-#    # plot the first 3 moments of each cube
+    # plot the first 3 moments of each cube
     plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
     plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
     plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
@@ -496,28 +501,45 @@ def main(pool, args):
     print("Preparing data...")
     data = ppv_pts(masked_hnc3_2_cube)
 
-    rmin = 0.5
-    rmid = 2.
-    rmax = 8.
+    # find the lower bounds on the peri and apoapses using apparent sep
+    m1 = masked_hnc3_2_cube.moment1()
+    dd, rr = m1.spatial_coordinate_map
+    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
+    c = c.ravel()
 
-    lmin = (rmin * rmid * np.sqrt((2 * (orbits.potential(rmid)
-                                  - orbits.potential(rmin))) / ((rmid ** 2)
-                                  - (rmin ** 2)))).value
-    lmax = (rmid * rmax * np.sqrt((2 * (orbits.potential(rmax)
-                                  - orbits.potential(rmid))) / ((rmax ** 2)
-                                  - (rmid ** 2)))).value
+    offset = np.array([((c.ra - GAL_CENTER.ra).rad * D_SGR_A).to(u.pc),
+                       ((c.dec - GAL_CENTER.dec).rad * D_SGR_A).to(u.pc),
+                       c.radial_velocity.to(u.pc / u.yr).value]).T
+
+    offset = offset[_notnan(offset[:, 2])]
+
+    # use lower bounds on peri/apoapsis to set lower bound on angular
+    # momentum
+    r_p_lb = np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+    r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+    lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
+                                            - orbits.potential(r_p_lb)))
+            / ((r_a_lb ** 2) - (r_p_lb ** 2)))).value
+
+    # our upper bound on the radius is determined by the position of
+    # the furthest local maximum
+    r_p_ub = r_a_lb
+    r_a_ub = brentq(orbits.V_eff_grad, 8., 9., args=(lmin))
+    lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
+                                            - orbits.potential(r_p_ub)))
+            / ((r_a_ub ** 2) - (r_p_ub ** 2)))).value
 
     # set up priors and do MCMC. angular momentum bounds are based on
     # the maximum radius
-    p_aop = [170., 190.]  # argument of periapsis
-    p_loan = [85., 105.]  # longitude of ascending node
-    p_inc = [195., 215.]  # inclination
-    p_r0 = [rmin, rmax]  # starting radial distance
+    p_aop = [0., 360.]  # argument of periapsis
+    p_loan = [0., 360.]  # longitude of ascending node
+    p_inc = [0., 360.]  # inclination
+    p_rp = [r_p_lb, r_p_ub]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
     pspace = np.array([p_aop,
                        p_loan,
                        p_inc,
-                       p_r0,
+                       p_rp,
                        p_l
                        ])
 
@@ -528,29 +550,27 @@ def main(pool, args):
     plot_acor(acor)
     corner_plot(samples, pspace)
 
-#    # analyze the walker data
-    aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                      zip(*np.percentile(samples, [16, 50, 84],
-                                                         axis=0)))
-    aop = aop[0]
-    loan = loan[0]
-    inc = inc[0]
-    r_per = r_per[0]
-    r_ap = r_ap[0]
-    pbest = np.array([aop[0], loan[0], inc[0], r_per[0], r_ap[0]])
+    # analyze the walker data
+    aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
+                                        zip(*np.percentile(samples,
+                                                           [16, 50, 84],
+                                                           axis=0)))
+    pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
 
     # print the best parameters found and plot the fit
     print("Best Fit")
-    print("aop: {0}, loan: {1}, inc: {2}, r_per: {3}, r_ap: {4}".format(pbest))
-#    theta = (180., 95., 180. + 25., 2., lmin + 0.8 * (lmax - lmin))
+    print("aop: {0}, loan: {1}, inc: {2}, "
+          "r_per: {3}, r_ap: {4}".format(*pbest))
     plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
+
+#    theta = (0., 20., 15., 2., 0.00010837)
+#    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', theta)
 
     # bit of cleanup
     if not os.listdir(OUTPATH):
         os.rmdir(OUTPATH)
 
-#    return samples
-    return None
+    return
 
 
 if __name__ == '__main__':
@@ -580,5 +600,4 @@ if __name__ == '__main__':
 
     pool = schwimmbad.choose_pool(mpi=args.MPI, processes=args.NCORES)
 
-    samples = main(pool, args)
-#    pass
+    main(pool, args)

@@ -133,7 +133,6 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
 
             # check convergence
             tau = sampler.get_autocorr_time(tol=0)
-            print(tau)
             autocorr = np.append(autocorr, np.mean(tau))
 
             converged = np.all(tau * 100 < sampler.iteration)
@@ -143,7 +142,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
             old_tau = tau
             np.savetxt('acor.csv', tau, delimiter=',')
 
-        tau = sampler.get_autocorr_time()
+        tau = sampler.get_autocorr_time(tol=0)
 
         print("Mean acceptance fraction: {0:.3f}"
               .format(np.mean(sampler.acceptance_fraction)))
@@ -154,20 +153,10 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         burnin = int(2 * np.nanmax(tau))
         thin = int(0.5 * np.nanmin(tau))
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
-        log_prob_samples = sampler.get_log_prob(discard=burnin,
-                                                flat=True, thin=thin)
-        log_prior_samples = sampler.get_blobs(discard=burnin,
-                                              flat=True, thin=thin)
 
         print("tau: {0}".format(tau))
         print("burn-in: {0}".format(burnin))
         print("thin: {0}".format(thin))
         print("flat chain shape: {0}".format(samples.shape))
-        print("flat log prob shape: {0}".format(log_prob_samples.shape))
-        print("flat log prior shape: {0}".format(log_prior_samples.shape))
 
-        all_samples = np.concatenate((
-                samples, log_prob_samples[:, None], log_prior_samples[:, None]
-        ), axis=1)
-
-    return all_samples, autocorr
+    return samples, autocorr

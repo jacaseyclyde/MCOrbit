@@ -24,6 +24,7 @@ Created on Fri Feb  9 16:08:27 2018
 """
 import numpy as np
 from scipy.stats import multivariate_normal
+from scipy.optimize import brentq
 
 from mcorbit import orbits
 
@@ -84,7 +85,7 @@ def ln_prior(theta, space):
     theta : :obj:`numpy.ndarray`
         An array of orbital parameters in the form::
 
-            numpy.array([aop, loan, inc, r_per, r_ap])
+            numpy.array([aop, loan, inc, r0, l_cons])
 
         which define the orbital model being checked.
 
@@ -99,31 +100,35 @@ def ln_prior(theta, space):
     Currently, we are assuming a flat prior within the parameter space.
 
     """
-    prior = 1.
-
     # first check that all parameters are within our parameter space
+    prior = 1.
     for i in range(space.shape[0]):
         pmin = min(space[i])
         pmax = max(space[i])
 
         if theta[i] < pmin or theta[i] > pmax:
-            prior *= 0.
+            return -np.inf
         else:
             prior *= (1. / (pmax - pmin))
 
-    # next check bounds based on allowed energies
-    # this is necessary as an add. constraint to prevent unbound orbits
-    # Vmin and Vmax refer to the minimum and maximum radius, not energy
+    # constraint on the radius to make sure we aren't past our maximum
+    # bound orbit for a given angular momentum
+    rmax = brentq(orbits.V_eff_grad, 8., 9., args=(theta[-1]))
+    if theta[-2] >= rmax:
+        return -np.inf
+
+    # we can also constrain the orbits such that r0 is the periapsis
+    if orbits.V_eff_grad > 0.:
+        return -np.inf
+
+    # next check that orbits are bounded
     V0 = orbits.V_eff(theta[-2], theta[-1])
-    Vmin = orbits.V_eff(min(space[-2]), theta[-1])
-    Vmax = orbits.V_eff(max(space[-2]), theta[-1])
 
-    if V0 > Vmin or V0 > Vmax:
-        prior *= 0.
+    if (V0 > orbits.V_eff(min(space[-2]), theta[-1])
+       or V0 > orbits.V_eff(rmax, theta[-1])):
+        return -np.inf
 
-    with np.errstate(divide='ignore'):  # suppress divide by zero warnings
-        ln_prior = np.log(prior)
-    return ln_prior
+    return np.log(prior)
 
 
 def ln_prob(theta, data, space, cov):

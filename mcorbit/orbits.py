@@ -61,11 +61,13 @@ GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
 
 G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
 
+D_SGR_A = 8. * u.kpc
+
 # =============================================================================
 # Default data
 # =============================================================================
 M_DAT = np.genfromtxt(os.path.join('../dat/enclosed_mass_distribution.txt'))
-M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * 8.0e3 * u.pc / u.rad
+M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * D_SGR_A.to(u.pc) / u.rad
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
 M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
 
@@ -289,8 +291,8 @@ def mass_grad(dist, interp=M_GRAD_INTERP):
     if dist == np.inf * u.pc:
         return 0. * u.Msun / u.pc
 
-    m_grad_dist = (interp(dist) * mass(dist) * np.log(10)).value
-    return m_grad_dist * u.Msun / u.pc
+    m_grad = (interp(dist) * mass(dist) * np.log(10)).value
+    return m_grad * u.Msun / u.pc
 
 
 def potential_grad(dist):
@@ -538,7 +540,7 @@ def sky_coords(pos, vel):
                        v_x=vel[0] * u.km / u.s,
                        v_y=vel[1] * u.km / u.s,
                        v_z=vel[2] * u.km / u.s,
-                       galcen_distance=8. * u.kpc,
+                       galcen_distance=D_SGR_A,
                        galcen_coord=GAL_CENTER).transform_to(FK5)
 
     return c
@@ -858,7 +860,11 @@ def main():
     # set initial variables
     r1 = .5
     r2 = 2.
-    rmax = 20.
+
+    from scipy.optimize import brentq
+    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
+                               / ((r2 ** 2) - (r1 ** 2)))).value
+    rmax = brentq(V_eff_grad, 8., 9., args=(l_min))
 
     # set up gridspace of apsides
     n_pts = 100
@@ -867,23 +873,59 @@ def main():
     rr2 = np.linspace(r1, rmax, num=n_pts)
     rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
 
-#    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
-#                                 / ((rmax ** 2) - (r2 ** 2)))).value
-#
-#    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
-#                               / ((r2 ** 2) - (r1 ** 2)))).value
+    r_max_0 = brentq(V_eff_grad, 8., 10., args=(0.))
+    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
+                                 / ((rmax ** 2) - (r2 ** 2)))).value
 
-#    print("l_min = {0}".format(l_min))
-#    print("l_max = {0}".format(l_max))
+    r_max_min = brentq(V_eff_grad, 8., 10., args=(l_min))
+    r_max_max = brentq(V_eff_grad, 8., 10., args=(l_max))
+
+#    V_0 = V_eff(r_max_0, 0.)
+#    V_min = V_eff(r_max_min, l_min)
+#    V_max = V_eff(r_max_max, l_max)
 #
-#    bounds = [(r ** 3) * potential_grad(r).value for r in rr]
+#    print("r_0 = {0}, V_0 = {1}, l = 0".format(r_max_0, V_0))
+#    print("r_min = {0}, V_min = {1}, l = {2}".format(r_max_min, V_min, l_min))
+#    print("r_max = {0}, V_max = {1}, l = {2}".format(r_max_max, V_max, l_max))
+
+    rtest = rmax
+    rmidtest = r2
+    rrtest = np.linspace(rmidtest, rtest, num=n_pts)
+    l_test = [(rmidtest * r * np.sqrt((2 * (potential(r)
+              - potential(rmidtest))) / ((r ** 2) - (rmidtest ** 2)))).value
+              for r in rrtest]
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rrtest, l_test)
+    plt.grid()
+    plt.show()
+
+    grad = np.gradient(l_test, rrtest)
+    interp = interp1d(rrtest[2:], grad[2:], kind='cubic',
+                      fill_value='extrapolate')
+    print(brentq(interp, 6., rtest))
+
+    rtest = rmax
+    rmidtest = 4.
+    rrtest = np.linspace(rmidtest, rtest, num=n_pts)
+    l_test = [(rmidtest * r * np.sqrt((2 * (potential(r)
+              - potential(rmidtest))) / ((r ** 2) - (rmidtest ** 2)))).value
+              for r in rrtest]
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rrtest, l_test)
+    plt.grid()
+    plt.show()
+
+    grad = np.gradient(l_test, rrtest)
+    interp = interp1d(rrtest[2:], grad[2:], kind='cubic', fill_value='extrapolate')
+    print(brentq(interp, 6., rtest))
+
 #    plt.figure(figsize=FIGSIZE)
-#    plt.plot(rr, bounds)
-#    plt.hlines([l_min ** 2, l_max ** 2], r1, rmax)
-#    plt.title("$l^{2} = r^{3} \\nabla \\Phi(r)$")
+#    plt.plot(rrtest, dl_test)
 #    plt.grid()
 #    plt.show()
-#
+
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [potential(r).value for r in rr], 'k-', label='Potential')
 #    plt.plot(rr, [V_eff(r, l_min) for r in rr], 'r-', label='V_eff, lmin')
@@ -897,7 +939,7 @@ def main():
 #    plt.grid()
 #    plt.legend()
 #    plt.show()
-#
+
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
 #             label='Potential Grad')
@@ -914,29 +956,29 @@ def main():
 #    plt.show()
 
     # plot vc
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, [np.sqrt((G * mass(r)
-                          / (r * u.pc)).to(u.km ** 2 / u.s ** 2)).value
-                  for r in rr], 'k-',
-             label='$v_{c}$')
-    plt.title("$v_{c}$ vs. $r$")
-    plt.xlabel("$r$ [pc]")
-    plt.ylabel("$v_{c}$ [km / s]")
-    plt.grid()
-    plt.legend()
-    plt.show()
-
-    # plot shear
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, [(((r / (2 * mass(r))) * mass_grad(r))).value - .5
-                  for r in rr], 'k-',
-             label='$\\beta$')
-    plt.title("Shear")
-    plt.xlabel("$r$ [pc]")
-    plt.ylabel("$\\beta = \\frac{d\\ln{v_{c}}}{d\\ln{r}}$")
-    plt.grid()
-    plt.legend()
-    plt.show()
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [np.sqrt((G * mass(r)
+#                          / (r * u.pc)).to(u.km ** 2 / u.s ** 2)).value
+#                  for r in rr], 'k-',
+#             label='$v_{c}$')
+#    plt.title("$v_{c}$ vs. $r$")
+#    plt.xlabel("$r$ [pc]")
+#    plt.ylabel("$v_{c}$ [km / s]")
+#    plt.grid()
+#    plt.legend()
+#    plt.show()
+#
+#    # plot shear
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [(((r / (2 * mass(r))) * mass_grad(r))).value - .5
+#                  for r in rr], 'k-',
+#             label='$\\beta$')
+#    plt.title("Shear")
+#    plt.xlabel("$r$ [pc]")
+#    plt.ylabel("$\\beta = \\frac{d\\ln{v_{c}}}{d\\ln{r}}$")
+#    plt.grid()
+#    plt.legend()
+#    plt.show()
 
 #    plot_potential_grad(r1, rmax)
 #    plot_acceleration(r1, rmax, l_min)
