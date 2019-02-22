@@ -534,7 +534,7 @@ def main(pool, args):
     p_aop = [0., 360.]  # argument of periapsis
     p_loan = [0., 360.]  # longitude of ascending node
     p_inc = [0., 360.]  # inclination
-    p_rp = [r_p_lb, r_p_ub]  # starting radial distance
+    p_rp = [r_p_lb, r_a_ub]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
     pspace = np.array([p_aop,
                        p_loan,
