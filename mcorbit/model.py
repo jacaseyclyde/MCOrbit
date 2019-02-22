@@ -118,7 +118,7 @@ def ln_prior(theta, space):
         return -np.inf
 
     # we can also constrain the orbits such that r0 is the periapsis
-    if orbits.V_eff_grad > 0.:
+    if orbits.V_eff_grad(theta[-2], theta[-1]) > 0.:
         return -np.inf
 
     # next check that orbits are bounded
