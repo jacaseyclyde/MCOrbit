@@ -113,7 +113,7 @@ def ln_prior(theta, space):
 
     # constraint on the radius to make sure we aren't past our maximum
     # bound orbit for a given angular momentum
-    rmax = brentq(orbits.V_eff_grad, 8., 9., args=(theta[-1]))
+    rmax = brentq(orbits.V_eff_grad, 6., 9., args=(theta[-1]))
     if theta[-2] >= rmax:
         return -np.inf
 
@@ -124,8 +124,9 @@ def ln_prior(theta, space):
     # next check that orbits are bounded
     V0 = orbits.V_eff(theta[-2], theta[-1])
 
-    if (V0 > orbits.V_eff(min(space[-2]), theta[-1])
-       or V0 > orbits.V_eff(rmax, theta[-1])):
+    # must be less than because if equal, orbits can unbind
+    if (V0 >= orbits.V_eff(min(space[-2]), theta[-1])
+       or V0 >= orbits.V_eff(rmax, theta[-1])):
         return -np.inf
 
     return np.log(prior)

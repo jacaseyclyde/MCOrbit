@@ -377,8 +377,7 @@ def plot_moment(cube, moment, prefix):
     # XXX: Throw an error instead of printing
     z_unit = ''
     if moment == 0:
-        z_unit = "Integrated Flux $(\\mathrm{Hz}\\,\\mathrm{Jy}/"
-        "\\mathrm{beam})$"
+        z_unit = "Integrated Flux $(\\mathrm{Hz}\\,\\mathrm{Jy}/\\mathrm{beam})$"
         cube = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
     elif moment == 1:
         z_unit = "$v_{r} (\\mathrm{km}/\\mathrm{s})$"
@@ -523,8 +522,8 @@ def main(pool, args):
 
     # our upper bound on the radius is determined by the position of
     # the furthest local maximum
-    r_p_ub = r_a_lb
-    r_a_ub = brentq(orbits.V_eff_grad, 8., 9., args=(lmin))
+    r_p_ub = 6. # r_a_lb
+    r_a_ub = brentq(orbits.V_eff_grad, 6., 9., args=(lmin))
     lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
                                             - orbits.potential(r_p_ub)))
             / ((r_a_ub ** 2) - (r_p_ub ** 2)))).value
@@ -534,7 +533,7 @@ def main(pool, args):
     p_aop = [0., 360.]  # argument of periapsis
     p_loan = [0., 360.]  # longitude of ascending node
     p_inc = [0., 360.]  # inclination
-    p_rp = [r_p_lb, r_a_ub]  # starting radial distance
+    p_rp = [r_p_lb, r_p_ub]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
     pspace = np.array([p_aop,
                        p_loan,
