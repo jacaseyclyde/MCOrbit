@@ -13,4 +13,4 @@ module purge
 module load intel-python3
 module load mvapich2-2.2/intel
 
-mpiexec python3 main.py --mpi -d ~/MCOrbit/dat/ --nmax 10000 --walkers 500
+mpiexec python3 mcorbit/main.py --mpi -d ~/MCOrbit/dat/ --nmax 10000 --walkers 500
