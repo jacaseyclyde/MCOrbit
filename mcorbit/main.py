@@ -122,16 +122,14 @@ def import_data(cubefile, maskfile=None):
 
     """
     # pylint: disable=E1101
-    cube = SpectralCube.read('../dat/{0}'.format(cubefile))
+    cube = SpectralCube.read(cubefile)
 
     # create mask to remove the NaN buffer around the image file later
     buffer_mask = LazyMask(_notnan, cube=cube)
 
     # mask out contents of maskfile as well as low intensity noise
     if maskfile is not None:
-        mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
-                                                   '../dat/{0}'
-                                                   .format(maskfile)))
+        mask_cube = SpectralCube.read(maskfile)
         mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
 
     else:
@@ -498,14 +496,15 @@ def main(pool, args):
     print("Loading Data...")
     # load data
     hnc3_2_cube = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                    '..', 'dat',
                                                     'HNC3_2.fits'),
                               maskfile=None)
     masked_hnc3_2_cube = import_data(cubefile=os.path.join(
                                      os.path.dirname(__file__),
-                                     'HNC3_2.fits'),
+                                     '..', 'dat', 'HNC3_2.fits'),
                                      maskfile=os.path.join(
                                              os.path.dirname(__file__),
-                                             'HNC3_2.mask.fits'))
+                                             '..', 'dat', 'HNC3_2.mask.fits'))
 
     # plot the first 3 moments of each cube
     plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
