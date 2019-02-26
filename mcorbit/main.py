@@ -561,12 +561,12 @@ def main(pool, args):
                        p_rp,
                        p_l
                        ])
-    np.savetxt(OUTPATH + STAMP + 'pspace.csv', pspace)
+    np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
     samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                     nwalkers=args.WALKERS, nmax=args.NMAX,
                                     burn=args.BURN, reset=False, mpi=args.MPI,
-                                    chain=OUTPATH + STAMP + 'chain.h5')
+                                    chain=os.path.join(OUTPATH, STAMP))
 
     plot_acor(acor)
     corner_plot(samples, pspace, args)

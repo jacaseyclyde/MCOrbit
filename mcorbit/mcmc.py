@@ -30,7 +30,7 @@ References
 
 """
 import sys
-import datetime
+import os
 
 import numpy as np
 import emcee
@@ -38,7 +38,7 @@ from emcee.autocorr import AutocorrError
 
 
 def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
-               reset=True, mpi=False, chain='chain.h5'):
+               reset=True, mpi=False, outpath=None):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
     Uses MCMC to fit orbits to the given `data`, exploring the parameter space
@@ -102,7 +102,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
 
     # Set up backe end for walker position saving
     # note that this requires h5py and emcee 3.x
-    backend = emcee.backends.HDFBackend(chain)
+    backend = emcee.backends.HDFBackend(os.path.join(outpath, 'chain.h5'))
     if reset:
         # starts simulation over
         backend.reset(nwalkers, ndim)
@@ -140,7 +140,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
             if converged:
                 break
             old_tau = tau
-            np.savetxt('acor.csv', tau, delimiter=',')
+            np.savetxt(os.path.join(outpath, 'acor.csv'), tau, delimiter=',')
 
         tau = sampler.get_autocorr_time(tol=0)
 
