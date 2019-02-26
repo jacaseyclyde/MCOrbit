@@ -567,7 +567,7 @@ def main(pool, args):
     samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                     nwalkers=args.WALKERS, nmax=args.NMAX,
                                     burn=args.BURN, reset=False, mpi=args.MPI,
-                                    chain=os.path.join(OUTPATH, STAMP))
+                                    outpath=os.path.join(OUTPATH, STAMP))
 
     plot_acor(acor)
     corner_plot(samples, pspace, args)
