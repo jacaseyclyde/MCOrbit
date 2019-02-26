@@ -71,7 +71,7 @@ from mcorbit import model
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
-STAMP = datetime.datetime.now().strftime('%Y%m%d%H%M%S') + '/'
+STAMP = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
 OUTPATH = os.path.join(os.path.dirname(__file__), '..', 'out')
 
 FIGSIZE = (10, 10)
@@ -129,7 +129,9 @@ def import_data(cubefile, maskfile=None):
 
     # mask out contents of maskfile as well as low intensity noise
     if maskfile is not None:
-        mask_cube = SpectralCube.read('../dat/{0}'.format(maskfile))
+        mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
+                                                   '../dat/{0}'
+                                                   .format(maskfile)))
         mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
 
     else:
@@ -341,19 +343,20 @@ def plot_model(cube, prefix, params):
     # plot dec vs ra
     f = _model_plot(ra_dec.moment0(axis=0).array, [ra, dec],
                     [ra_max, ra_min, dec_min, dec_max], params, ['ra', 'dec'])
-    f.savefig(OUTPATH + STAMP + '{0}_model_ra_dec.{1}'.format(prefix,
-              FILETYPE))
+    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_ra_dec.{1}'
+                           .format(prefix, FILETYPE)))
 
     # plot velocity vs ra
     f = _model_plot(cube.moment0(axis=1).array, [ra, vel],
                     [ra_max, ra_min, vmin, vmax], params, ['ra', 'vel'])
-    f.savefig(OUTPATH + STAMP + '{0}_model_ra_v.{1}'.format(prefix,
-              FILETYPE))
+    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_ra_v.{1}'.format(prefix,
+              FILETYPE)))
 
     # plot dec vs v
     f = _model_plot(cube.moment0(axis=2).array, [dec, vel],
                     [dec_min, dec_max, vmin, vmax], params, ['dec', 'vel'])
-    f.savefig(OUTPATH + STAMP + '{0}_model_dec_v.{1}'.format(prefix, FILETYPE))
+    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_dec_v.{1}'
+                           .format(prefix, FILETYPE)))
 
 
 def plot_moment(cube, moment, prefix):
@@ -451,8 +454,9 @@ def corner_plot(walkers, prange, args):
                         labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$"])
     fig.set_size_inches(12, 12)
 
-    plt.savefig(OUTPATH + STAMP + 'corner_w{0}_it{1}.pdf'.format(args.WALKERS,
-                args.NMAX), bbox_inches='tight')
+    plt.savefig(os.path.join(OUTPATH, STAMP, 'corner_w{0}_it{1}.pdf'
+                             .format(args.WALKERS, args.NMAX),
+                             bbox_inches='tight'))
     plt.show()
 
 
@@ -466,7 +470,7 @@ def plot_acor(acor):
     plt.ylim(0, acor.max() + 0.1*(acor.max() - acor.min()))
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
-    plt.savefig(OUTPATH + STAMP + 'acor.pdf')
+    plt.savefig(os.path.join(OUTPATH, STAMP, 'acor.pdf'))
     plt.show()
 
 
@@ -487,7 +491,7 @@ def main(pool, args):
 
     # create output folder
     try:
-        os.makedirs(OUTPATH + STAMP)
+        os.makedirs(os.path.join(OUTPATH, STAMP))
     except FileExistsError:
         pass
 
