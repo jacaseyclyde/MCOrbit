@@ -32,6 +32,8 @@ import os
 import sys
 import warnings
 import argparse
+import datetime
+from pathlib import Path
 # import time
 
 # Set up warning filters for things that don't really matter to us
@@ -69,7 +71,7 @@ from mcorbit import model
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
-STAMP = ''
+STAMP = datetime.datetime.now().strftime('%Y%m%d%H%M%S') + '/'
 OUTPATH = '../out/'
 
 FIGSIZE = (10, 10)
@@ -339,17 +341,19 @@ def plot_model(cube, prefix, params):
     # plot dec vs ra
     f = _model_plot(ra_dec.moment0(axis=0).array, [ra, dec],
                     [ra_max, ra_min, dec_min, dec_max], params, ['ra', 'dec'])
-    f.savefig(OUTPATH + '{0}_model_ra_dec.{1}'.format(prefix, FILETYPE))
+    f.savefig(OUTPATH + STAMP + '{0}_model_ra_dec.{1}'.format(prefix,
+              FILETYPE))
 
     # plot velocity vs ra
     f = _model_plot(cube.moment0(axis=1).array, [ra, vel],
                     [ra_max, ra_min, vmin, vmax], params, ['ra', 'vel'])
-    f.savefig(OUTPATH + '{0}_model_ra_v.{1}'.format(prefix, FILETYPE))
+    f.savefig(OUTPATH + STAMP + '{0}_model_ra_v.{1}'.format(prefix,
+              FILETYPE))
 
     # plot dec vs v
     f = _model_plot(cube.moment0(axis=2).array, [dec, vel],
                     [dec_min, dec_max, vmin, vmax], params, ['dec', 'vel'])
-    f.savefig(OUTPATH + '{0}_model_dec_v.{1}'.format(prefix, FILETYPE))
+    f.savefig(OUTPATH + STAMP + '{0}_model_dec_v.{1}'.format(prefix, FILETYPE))
 
 
 def plot_moment(cube, moment, prefix):
@@ -369,10 +373,15 @@ def plot_moment(cube, moment, prefix):
         Prefix to use for filename
 
     """
+    # only make file if it doesnt already exist
+    filename = OUTPATH + '{0}_moment_{1}.{2}'.format(prefix, moment, FILETYPE)
+    with Path(filename) as file:
+        if file.exists():
+            return
+
     # TODO: Refactor function to plot all 3 moments in a single call
     # pylint: disable=E1101, W1401, C0103
     m = cube.moment(order=moment).hdu
-    filename = '{0}_moment_{1}.{2}'
 
     # XXX: Throw an error instead of printing
     z_unit = ''
@@ -413,10 +422,11 @@ def plot_moment(cube, moment, prefix):
     f.add_colorbar()
     f.colorbar.set_axis_label_text(z_unit)
 
-    f.save(OUTPATH + filename.format(prefix, moment, FILETYPE))
+    f.save(filename)
+    return
 
 
-def corner_plot(walkers, prange):
+def corner_plot(walkers, prange, args):
     """Wrapper function for creating and saving graphs of the parameter space.
 
     Creates and saves a corner plot of the parameter space we are doing MCMC
@@ -441,7 +451,8 @@ def corner_plot(walkers, prange):
                         labels=["$aop$", "$loan$", "$inc$", "$r$", "$l$"])
     fig.set_size_inches(12, 12)
 
-    plt.savefig(OUTPATH + 'corner.pdf', bbox_inches='tight')
+    plt.savefig(OUTPATH + STAMP + 'corner_w{0}_it{1}.pdf'.format(args.WALKERS,
+                args.NMAX), bbox_inches='tight')
     plt.show()
 
 
@@ -455,7 +466,7 @@ def plot_acor(acor):
     plt.ylim(0, acor.max() + 0.1*(acor.max() - acor.min()))
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
-    plt.savefig(OUTPATH + 'acor.pdf')
+    plt.savefig(OUTPATH + STAMP + 'acor.pdf')
     plt.show()
 
 
@@ -541,13 +552,15 @@ def main(pool, args):
                        p_rp,
                        p_l
                        ])
+    np.savetxt(OUTPATH + STAMP + 'pspace.csv', pspace)
 
     samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                     nwalkers=args.WALKERS, nmax=args.NMAX,
-                                    burn=args.BURN, reset=False, mpi=args.MPI)
+                                    burn=args.BURN, reset=False, mpi=args.MPI,
+                                    chain=OUTPATH + STAMP + 'chain.h5')
 
     plot_acor(acor)
-    corner_plot(samples, pspace)
+    corner_plot(samples, pspace, args)
 
     # analyze the walker data
     aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),

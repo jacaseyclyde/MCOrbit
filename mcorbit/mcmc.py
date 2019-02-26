@@ -30,6 +30,7 @@ References
 
 """
 import sys
+import datetime
 
 import numpy as np
 import emcee
@@ -37,7 +38,7 @@ from emcee.autocorr import AutocorrError
 
 
 def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
-               reset=True, mpi=False):
+               reset=True, mpi=False, chain='chain.h5'):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
     Uses MCMC to fit orbits to the given `data`, exploring the parameter space
@@ -99,10 +100,9 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
     cov = np.cov(data, rowvar=False)
 
-    # Set up backend so we can save chain in case of catastrophe
-    # note that this requires h5py and emcee 3.0.0 on github
-    filename = 'chain.h5'
-    backend = emcee.backends.HDFBackend(filename)
+    # Set up backe end for walker position saving
+    # note that this requires h5py and emcee 3.x
+    backend = emcee.backends.HDFBackend(chain)
     if reset:
         # starts simulation over
         backend.reset(nwalkers, ndim)
