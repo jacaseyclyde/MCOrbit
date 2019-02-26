@@ -66,7 +66,8 @@ D_SGR_A = 8. * u.kpc
 # =============================================================================
 # Default data
 # =============================================================================
-M_DAT = np.genfromtxt(os.path.join('../dat/enclosed_mass_distribution.txt'))
+M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
+                                   '../dat/enclosed_mass_distribution.txt'))
 M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * D_SGR_A.to(u.pc) / u.rad
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
 M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
