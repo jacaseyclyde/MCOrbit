@@ -375,7 +375,8 @@ def plot_moment(cube, moment, prefix):
 
     """
     # only make file if it doesnt already exist
-    filename = OUTPATH + '{0}_moment_{1}.{2}'.format(prefix, moment, FILETYPE)
+    filename = os.path.join(OUTPATH, '{0}_moment_{1}.{2}'
+                            .format(prefix, moment, FILETYPE))
     with Path(filename) as file:
         if file.exists():
             return
