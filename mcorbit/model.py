@@ -124,9 +124,8 @@ def ln_prior(theta, space):
     # next check that orbits are bounded
     V0 = orbits.V_eff(theta[-2], theta[-1])
 
-    # must be less than because if equal, orbits can unbind
-    if (V0 >= orbits.V_eff(min(space[-2]), theta[-1])
-       or V0 >= orbits.V_eff(rmax, theta[-1])):
+    if (V0 > orbits.V_eff(min(space[-2]), theta[-1])
+       or V0 > orbits.V_eff(rmax, theta[-1])):
         return -np.inf
 
     return np.log(prior)

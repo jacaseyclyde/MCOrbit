@@ -522,17 +522,17 @@ def main(pool, args):
 
     # our upper bound on the radius is determined by the position of
     # the furthest local maximum
-    r_p_ub = 6. # r_a_lb
     r_a_ub = brentq(orbits.V_eff_grad, 6., 9., args=(lmin))
+    r_p_ub = 6.  # r_a_lb
     lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
                                             - orbits.potential(r_p_ub)))
             / ((r_a_ub ** 2) - (r_p_ub ** 2)))).value
 
     # set up priors and do MCMC. angular momentum bounds are based on
     # the maximum radius
-    p_aop = [0., 360.]  # argument of periapsis
-    p_loan = [0., 360.]  # longitude of ascending node
-    p_inc = [0., 360.]  # inclination
+    p_aop = [60., 300.]  # argument of periapsis
+    p_loan = [-180., 180.]  # longitude of ascending node
+    p_inc = [-30., 30.]  # inclination
     p_rp = [r_p_lb, r_p_ub]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
     pspace = np.array([p_aop,
@@ -562,7 +562,7 @@ def main(pool, args):
           "r_per: {3}, r_ap: {4}".format(*pbest))
     plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
 
-#    theta = (0., 20., 15., 2., 0.00010837)
+#    theta = (0., 20., 11., 2., 0.00010837)
 #    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', theta)
 
     # bit of cleanup

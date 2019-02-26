@@ -380,6 +380,10 @@ def orbit(r0, l_cons):
         period.
 
     """
+    # keeping track of initial particle energy
+    # necessary for some endpoint corrections
+    E = V_eff(r0, l_cons)
+
     # sticking to 2D polar for initial integration since z = 0
     r0 *= u.pc
     r_pos = np.array([r0.value]) * u.pc
@@ -398,8 +402,12 @@ def orbit(r0, l_cons):
         r_half = r_pos[-1] + 0.5 * TSTEP * r_vel[-1]
 
         # kick
-        r_vel_new = r_vel[-1] + TSTEP * ((l_cons ** 2) / (r_half ** 3)
-                                         - potential_grad(r_half))
+        if E <= V_eff(r_half.value, l_cons.value):
+            r_vel_new = TSTEP * ((l_cons ** 2) / (r_half ** 3)
+                                 - potential_grad(r_half))
+        else:
+            r_vel_new = r_vel[-1] + TSTEP * ((l_cons ** 2) / (r_half ** 3)
+                                             - potential_grad(r_half))
 
         # second drift
         r_new = r_half + 0.5 * TSTEP * r_vel_new
@@ -561,7 +569,12 @@ def model(theta, coords=False):
 
     """
     aop, loan, inc, r0, l_cons = theta
-    pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error')
+        try:
+            pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
+        except Warning:
+            raise ValueError("orbits params: {0}, {1}".format(theta[-2], theta[-1]))
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
     if coords:
@@ -858,27 +871,25 @@ def plot_velocity(r1, r2):
 # =============================================================================
 def main():
     # set initial variables
-    r1 = .5
-    r2 = 2.
-
-    from scipy.optimize import brentq
-    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
-                               / ((r2 ** 2) - (r1 ** 2)))).value
-    rmax = brentq(V_eff_grad, 8., 9., args=(l_min))
+#    r1 = .5
+#    r2 = 2.
+#
+#    from scipy.optimize import brentq
+#    l_min = (r1 * r2 * np.sqrt((2 * (potential(r2) - potential(r1)))
+#                               / ((r2 ** 2) - (r1 ** 2)))).value
+#    rmax = brentq(V_eff_grad, 8., 9., args=(l_min))
 
     # set up gridspace of apsides
-    n_pts = 100
-    rr = np.linspace(r1, rmax, num=n_pts)
-    rr1 = np.linspace(r1, rmax, num=n_pts)
-    rr2 = np.linspace(r1, rmax, num=n_pts)
-    rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
+#    rr1 = np.linspace(r1, rmax, num=n_pts)
+#    rr2 = np.linspace(r1, rmax, num=n_pts)
+#    rr1, rr2 = np.meshgrid(rr1, rr2, indexing='ij')
 
-    r_max_0 = brentq(V_eff_grad, 8., 10., args=(0.))
-    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
-                                 / ((rmax ** 2) - (r2 ** 2)))).value
-
-    r_max_min = brentq(V_eff_grad, 8., 10., args=(l_min))
-    r_max_max = brentq(V_eff_grad, 8., 10., args=(l_max))
+#    r_max_0 = brentq(V_eff_grad, 8., 10., args=(0.))
+#    l_max = (r2 * rmax * np.sqrt((2 * (potential(rmax) - potential(r2)))
+#                                 / ((rmax ** 2) - (r2 ** 2)))).value
+#
+#    r_max_min = brentq(V_eff_grad, 8., 10., args=(l_min))
+#    r_max_max = brentq(V_eff_grad, 8., 10., args=(l_max))
 
 #    V_0 = V_eff(r_max_0, 0.)
 #    V_min = V_eff(r_max_min, l_min)
@@ -888,57 +899,57 @@ def main():
 #    print("r_min = {0}, V_min = {1}, l = {2}".format(r_max_min, V_min, l_min))
 #    print("r_max = {0}, V_max = {1}, l = {2}".format(r_max_max, V_max, l_max))
 
-    rtest = rmax
-    rmidtest = r2
-    rrtest = np.linspace(rmidtest, rtest, num=n_pts)
-    l_test = [(rmidtest * r * np.sqrt((2 * (potential(r)
-              - potential(rmidtest))) / ((r ** 2) - (rmidtest ** 2)))).value
-              for r in rrtest]
-
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rrtest, l_test)
-    plt.grid()
-    plt.show()
-
-    grad = np.gradient(l_test, rrtest)
-    interp = interp1d(rrtest[2:], grad[2:], kind='cubic',
-                      fill_value='extrapolate')
-    print(brentq(interp, 6., rtest))
-
-    rtest = rmax
-    rmidtest = 4.
-    rrtest = np.linspace(rmidtest, rtest, num=n_pts)
-    l_test = [(rmidtest * r * np.sqrt((2 * (potential(r)
-              - potential(rmidtest))) / ((r ** 2) - (rmidtest ** 2)))).value
-              for r in rrtest]
-
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rrtest, l_test)
-    plt.grid()
-    plt.show()
-
-    grad = np.gradient(l_test, rrtest)
-    interp = interp1d(rrtest[2:], grad[2:], kind='cubic', fill_value='extrapolate')
-    print(brentq(interp, 6., rtest))
+#    rtest = rmax
+#    rmidtest = r2
+#    rrtest = np.linspace(rmidtest, rtest, num=n_pts)
+#    l_test = [(rmidtest * r * np.sqrt((2 * (potential(r)
+#              - potential(rmidtest))) / ((r ** 2) - (rmidtest ** 2)))).value
+#              for r in rrtest]
 
 #    plt.figure(figsize=FIGSIZE)
-#    plt.plot(rrtest, dl_test)
+#    plt.plot(rrtest, l_test)
 #    plt.grid()
 #    plt.show()
 
+#    grad = np.gradient(l_test, rrtest)
+#    interp = interp1d(rrtest[2:], grad[2:], kind='cubic',
+#                      fill_value='extrapolate')
+#    print(brentq(interp, 6., rtest))
+
+#    rtest = rmax
+#    rmidtest = 4.
+#    rrtest = np.linspace(rmidtest, rtest, num=n_pts)
+#    l_test = [(rmidtest * r * np.sqrt((2 * (potential(r)
+#              - potential(rmidtest))) / ((r ** 2) - (rmidtest ** 2)))).value
+#              for r in rrtest]
+
 #    plt.figure(figsize=FIGSIZE)
-#    plt.plot(rr, [potential(r).value for r in rr], 'k-', label='Potential')
-#    plt.plot(rr, [V_eff(r, l_min) for r in rr], 'r-', label='V_eff, lmin')
-#    plt.plot(rr, [(l_min ** 2) / (2 * (r ** 2)) for r in rr], 'r--', alpha=0.5,
-#             label='$l_{min}^{2} / 2 r^{2}$')
-#    plt.plot(rr, [V_eff(r, l_max) for r in rr], 'b-', label='V_eff, lmax')
-#    plt.plot(rr, [(l_max ** 2) / (2 * (r ** 2)) for r in rr], 'b--', alpha=0.5,
-#             label='$l_{max}^{2} / 2 r^{2}$')
-#    plt.hlines(V_eff(rmax, l_max), r1, rmax)
-#    plt.vlines([r1, r2, rmax], *plt.ylim())
+#    plt.plot(rrtest, l_test)
 #    plt.grid()
-#    plt.legend()
 #    plt.show()
+
+#    grad = np.gradient(l_test, rrtest)
+#    interp = interp1d(rrtest[2:], grad[2:], kind='cubic', fill_value='extrapolate')
+#    print(brentq(interp, 6., rtest))
+
+    rmin = .5
+    rmax = 10.
+    r0 = .9413703833253498
+    l_cons = .0001237035540755403
+
+    plot_V_eff(rmin, rmax, l_cons)
+
+    n_pts = 100
+    rr = np.linspace(rmin, rmax, num=n_pts)
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
+    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+    plot_orbit(r0, l_cons)
 
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
