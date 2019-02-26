@@ -72,7 +72,7 @@ from mcorbit import model
 np.set_printoptions(precision=5, threshold=np.inf)
 
 STAMP = datetime.datetime.now().strftime('%Y%m%d%H%M%S') + '/'
-OUTPATH = '../out/'
+OUTPATH = os.path.dirname(__file__) + '../out/'
 
 FIGSIZE = (10, 10)
 FILETYPE = 'pdf'
