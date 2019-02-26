@@ -497,12 +497,15 @@ def main(pool, args):
 
     print("Loading Data...")
     # load data
-    hnc3_2_cube = import_data(cubefile=os.path.dirname(__file__)
-                              + 'HNC3_2.fits', maskfile=None)
-    masked_hnc3_2_cube = import_data(cubefile=os.path.dirname(__file__)
-                                     + 'HNC3_2.fits',
-                                     maskfile=os.path.dirname(__file__)
-                                     + 'HNC3_2.mask.fits')
+    hnc3_2_cube = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                    'HNC3_2.fits'),
+                              maskfile=None)
+    masked_hnc3_2_cube = import_data(cubefile=os.path.join(
+                                     os.path.dirname(__file__),
+                                     'HNC3_2.fits'),
+                                     maskfile=os.path.join(
+                                             os.path.dirname(__file__),
+                                             'HNC3_2.mask.fits'))
 
     # plot the first 3 moments of each cube
     plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
