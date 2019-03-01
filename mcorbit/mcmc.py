@@ -133,6 +133,8 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
 
             # check convergence
             tau = sampler.get_autocorr_time(tol=0)
+            if not mpi:
+                print(tau)
             autocorr = np.append(autocorr, np.mean(tau))
 
             converged = np.all(tau * 100 < sampler.iteration)
