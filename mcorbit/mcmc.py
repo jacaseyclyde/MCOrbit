@@ -152,13 +152,18 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         print("Mean autocorrelation time: {0:.3f} steps"
               .format(np.mean(tau)))
 
-        burnin = int(2 * np.nanmax(tau))
-        thin = int(0.5 * np.nanmin(tau))
-        samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+        try:
+            burnin = int(2 * np.nanmax(tau))
+            thin = int(0.5 * np.nanmin(tau))
+            samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
 
-        print("tau: {0}".format(tau))
-        print("burn-in: {0}".format(burnin))
-        print("thin: {0}".format(thin))
-        print("flat chain shape: {0}".format(samples.shape))
+            print("tau: {0}".format(tau))
+            print("burn-in: {0}".format(burnin))
+            print("thin: {0}".format(thin))
+            print("flat chain shape: {0}".format(samples.shape))
+        except Exception:
+            samples = sampler.get_chain(flat=True)
+            print("tau: {0}".format(tau))
+            print("flat chain shape: {0}".format(samples.shape))
 
     return samples, autocorr

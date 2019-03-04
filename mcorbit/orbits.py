@@ -69,8 +69,19 @@ D_SGR_A = 8. * u.kpc
 M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
                                    '../dat/enclosed_mass_distribution.txt'))
 M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * D_SGR_A.to(u.pc) / u.rad
+
+
+
+
+###### CHECK THESE!!!! CRITICAL!!!!!!!!!
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
+# Might be better to switch logM to M now instead of in function
 M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
+###### EXTREMELY CRITICAL TO CHECK THE ABOVE. ESPECIALLY GRADIENT!!!!!!
+
+
+
+
 
 # uncomment to use point mass equal to mass enclosed at ~1pc
 #M_ENC = len(M_ENC) * [M_ENC[175]]  # 1pc away from Sgr A*
@@ -322,6 +333,7 @@ def potential_grad(dist):
         return np.inf * u.pc / (u.yr ** 2)
 
     return (-1. / dist) * (potential(dist) + G * mass_grad(dist))
+#    return -1. * G * ((mass_grad(dist) / dist) - (mass(dist) / (dist ** 2)))
 
 
 @np.vectorize
@@ -403,11 +415,25 @@ def orbit(r0, l_cons):
         r_half = r_pos[-1] + 0.5 * TSTEP * r_vel[-1]
 
         # kick
+        # check that the particle's original energy is greater than the
+        # effective potential energy. If necessary, introduce a
+        # correction
+        #
+        # IDEAS FOR MORE CONSISTENT CORRECTION/COMPUTATION
+        # 1. At each step, calculate the difference between the
+        #    conserved energy and the energy at the current location.
+        #    Keep the sign of the velocity and update as needed
+        # 2. Try kick-drift-kick formulation
+        # 3. Update using energies dierectly, as well as the gradient
+        #    of Veff
+        # 4. Check the current calculations for the acceleration for
+        #    simplifications that can be made (esp. any that reduce the
+        #    order or range of the order of calculations performed).
         if E <= V_eff(r_half.value, l_cons.value):
             r_vel_new = TSTEP * ((l_cons ** 2) / (r_half ** 3)
                                  - potential_grad(r_half))
         else:
-            r_vel_new = r_vel[-1] + TSTEP * ((l_cons ** 2) / (r_half ** 3)
+            r_vel_new = r_vel[-1] + TSTEP * (((l_cons ** 2) / (r_half ** 3))
                                              - potential_grad(r_half))
 
         # second drift
