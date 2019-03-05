@@ -522,6 +522,11 @@ def main(pool, args):
     print("Preparing data...")
     data = ppv_pts(masked_hnc3_2_cube)
 
+    if args.SUB != 1.:
+        n_pts = len(data)
+        ind = np.random.randint(0, n_pts, size=int(args.SUB * n_pts))
+        data = data[ind]
+
     # find the lower bounds on the peri and apoapses using apparent sep
     m1 = masked_hnc3_2_cube.moment1()
     dd, rr = m1.spatial_coordinate_map
@@ -612,6 +617,9 @@ if __name__ == '__main__':
     PARSER.add_argument('-b', '--burn', dest='BURN', action='store',
                         help='number of initial burn-in iterations',
                         default=1000, type=int)
+    PARSER.add_argument('-s', '--sub', dest='SUB', action='store',
+                        help='fraction of data points to use (random sample)',
+                        default=1., type=float)
 
     GROUP = PARSER.add_mutually_exclusive_group()
     GROUP.add_argument("--ncores", dest="NCORES", default=1,
