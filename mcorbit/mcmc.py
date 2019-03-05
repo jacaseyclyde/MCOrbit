@@ -170,4 +170,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         print("flat log prob shape: {0}".format(log_prob_samples.shape))
         print("flat log prior shape: {0}".format(log_prior_samples.shape))
 
-    return samples, autocorr
+        all_samples = np.concatenate((samples, log_prob_samples[:, None],
+                                      log_prior_samples[:, None]), axis=1)
+
+    return all_samples, autocorr
