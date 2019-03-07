@@ -71,7 +71,7 @@ from mcorbit import model
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
-STAMP = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+STAMP = ""  # datetime.datetime.now().strftime('%Y%m%d%H%M%S')
 OUTPATH = os.path.join(os.path.dirname(__file__), '..', 'out')
 
 FIGSIZE = (10, 10)
@@ -486,8 +486,8 @@ def main(pool, args):
     starting the actual MCMC process.
 
     """
-    # Grab the initial time for total runtime statistics
-    # t0 = time.time()
+    global STAMP
+    STAMP = args.OUT
 
     # create output folder
     try:
@@ -620,6 +620,9 @@ if __name__ == '__main__':
     PARSER.add_argument('-s', '--sub', dest='SUB', action='store',
                         help='fraction of data points to use (random sample)',
                         default=1., type=float)
+    PARSER.add_argument('-o', '--out', dest='OUT', action='store',
+                        help='specific out path',
+                        default='', type=str)
 
     GROUP = PARSER.add_mutually_exclusive_group()
     GROUP.add_argument("--ncores", dest="NCORES", default=1,
