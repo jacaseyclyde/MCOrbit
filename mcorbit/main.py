@@ -559,9 +559,9 @@ def main(pool, args):
 
     # set up priors and do MCMC. angular momentum bounds are based on
     # the maximum radius
-    p_aop = [60., 300.]  # argument of periapsis
+    p_aop = [-180., 180.]  # argument of periapsis
     p_loan = [-180., 180.]  # longitude of ascending node
-    p_inc = [-30., 30.]  # inclination
+    p_inc = [-180., 180.]  # inclination
     p_rp = [r_p_lb, r_p_ub]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
     pspace = np.array([p_aop,
