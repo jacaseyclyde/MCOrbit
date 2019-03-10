@@ -447,17 +447,20 @@ def corner_plot(walkers, prange, args):
         Name of the file to save the plot to.
 
     """
+    samples_min = np.min(walkers[walkers[:, -2] != -np.inf], axis=0)
+    samples_max = np.max(walkers[walkers[:, -2] != -np.inf], axis=0)
+    prange = np.array([samples_min, samples_max]).T
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
     fig = corner.corner(walkers,
                         labels=["$aop$", "$loan$", "$inc$", "$r_p$", "$l$",
-                                "log prob", "log prior"])
+                                "log prob", "log prior"],
+                                range=prange)
     fig.set_size_inches(12, 12)
 
     plt.savefig(os.path.join(OUTPATH, STAMP, 'corner_w{0}_it{1}.pdf'
                              .format(args.WALKERS, args.NMAX),
                              bbox_inches='tight'))
-    plt.show()
 
 
 def plot_acor(acor):
@@ -471,7 +474,6 @@ def plot_acor(acor):
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
     plt.savefig(os.path.join(OUTPATH, STAMP, 'acor.pdf'))
-    plt.show()
 
 
 # =============================================================================
