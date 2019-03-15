@@ -61,7 +61,7 @@ GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
 
 G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
 
-D_SGR_A = 8. * u.kpc
+D_SGR_A = 8.127 * u.kpc
 
 # =============================================================================
 # Default data
@@ -127,7 +127,7 @@ def mass(dist, interp=M_ENC_INTERP):
     -------
     float
         The mass (in solar masses) enclosed by the sphere of radius
-        `dist`.
+        `dist`, multiplied by the gravitational constant G.
 
     """
     try:
@@ -144,7 +144,7 @@ def mass(dist, interp=M_ENC_INTERP):
         return np.inf * u.Msun
 
     mass_enc = interp(dist)
-    return np.power(10, mass_enc) * u.Msun
+    return G * np.power(10, mass_enc) * u.Msun
 
 
 def potential(dist):
@@ -179,7 +179,7 @@ def potential(dist):
     with warnings.catch_warnings(record=True):
         if dist == np.inf:
             return 0. * (u.pc ** 2) / (u.yr ** 2)
-        return - G * mass(dist) / dist
+        return - mass(dist) / dist
 
 
 @np.vectorize
@@ -229,7 +229,7 @@ def angular_momentum(r1, r2):
         r2 = r2 * u.pc
 
     if r1 == r2:
-        return (r1 * np.sqrt(-1 * potential(r1) - G * mass_grad(r1))).value
+        return (r1 * np.sqrt(-1 * potential(r1) - mass_grad(r1))).value
 
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
@@ -332,8 +332,7 @@ def potential_grad(dist):
     if dist == 0:
         return np.inf * u.pc / (u.yr ** 2)
 
-    return (-1. / dist) * (potential(dist) + G * mass_grad(dist))
-#    return -1. * G * ((mass_grad(dist) / dist) - (mass(dist) / (dist ** 2)))
+    return (-1. / dist) * (potential(dist) + mass_grad(dist))
 
 
 @np.vectorize
