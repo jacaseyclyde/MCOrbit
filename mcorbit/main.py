@@ -572,12 +572,11 @@ def main(pool, args):
                        ])
     np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
-    samples, acor = mcmc.fit_orbits(pool, ln_prob, data, pspace,
-                                    nwalkers=args.WALKERS, nmax=args.NMAX,
-                                    burn=args.BURN, reset=False, mpi=args.MPI,
-                                    outpath=os.path.join(OUTPATH, STAMP))
+    samples = mcmc.fit_orbits(pool, ln_prob, data, pspace,
+                              nwalkers=args.WALKERS, nmax=args.NMAX,
+                              burn=args.BURN, reset=False, mpi=args.MPI,
+                              outpath=os.path.join(OUTPATH, STAMP))
 
-    plot_acor(acor)
     corner_plot(samples, pspace, args)
 
     # analyze the walker data

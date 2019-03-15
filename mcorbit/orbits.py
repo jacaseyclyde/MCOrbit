@@ -601,7 +601,8 @@ def model(theta, coords=False):
         try:
             pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
         except Warning:
-            raise ValueError("orbits params: {0}, {1}".format(theta[-2], theta[-1]))
+            raise ValueError("orbits params: {0}, {1}".format(theta[-2],
+                             theta[-1]))
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
     if coords:
@@ -959,24 +960,24 @@ def main():
 #    interp = interp1d(rrtest[2:], grad[2:], kind='cubic', fill_value='extrapolate')
 #    print(brentq(interp, 6., rtest))
 
-    rmin = .5
-    rmax = 10.
-    r0 = .9413703833253498
-    l_cons = .0001237035540755403
-
-    plot_V_eff(rmin, rmax, l_cons)
-
-    n_pts = 100
-    rr = np.linspace(rmin, rmax, num=n_pts)
-
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
-    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
-    plt.grid()
-    plt.legend()
-    plt.show()
-
-    plot_orbit(r0, l_cons)
+#    rmin = .5
+#    rmax = 10.
+#    r0 = .9413703833253498
+#    l_cons = .0001237035540755403
+#
+#    plot_V_eff(rmin, rmax, l_cons)
+#
+#    n_pts = 100
+#    rr = np.linspace(rmin, rmax, num=n_pts)
+#
+#    plt.figure(figsize=FIGSIZE)
+#    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
+#    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
+#    plt.grid()
+#    plt.legend()
+#    plt.show()
+#
+#    plot_orbit(r0, l_cons)
 
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
