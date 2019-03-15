@@ -125,8 +125,6 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         # this also includes the burn in, which we will discard later
         # discard based on autocorrelation times
         old_tau = np.inf
-        autocorr = np.array([])
-
         for sample in sampler.sample(pos, iterations=nmax, progress=True):
             if sampler.iteration % 100:
                 continue
@@ -135,14 +133,16 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
             tau = sampler.get_autocorr_time(tol=0)
             if not mpi:
                 print(tau)
-            autocorr = np.append(autocorr, np.mean(tau))
 
             converged = np.all(tau * 100 < sampler.iteration)
             converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
             if converged:
                 break
             old_tau = tau
-            np.savetxt(os.path.join(outpath, 'acor.csv'), tau, delimiter=',')
+
+            arr_tau = tau.reshape(1, len(tau))
+            with open(os.path.join(outpath, 'acor.csv'), mode='a') as f:
+                np.savetxt(f, arr_tau, delimiter=',')
 
         try:
             tau = sampler.get_autocorr_time()
@@ -173,4 +173,4 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         all_samples = np.concatenate((samples, log_prob_samples[:, None],
                                       log_prior_samples[:, None]), axis=1)
 
-    return all_samples, autocorr
+    return all_samples
