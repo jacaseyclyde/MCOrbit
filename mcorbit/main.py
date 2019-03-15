@@ -526,7 +526,8 @@ def main(pool, args):
 
     if args.SUB != 1.:
         n_pts = len(data)
-        ind = np.random.randint(0, n_pts, size=int(args.SUB * n_pts))
+        ind = np.random.choice(range(n_pts), size=int(args.SUB * n_pts),
+                               replace=False)
         data = data[ind]
 
     # find the lower bounds on the peri and apoapses using apparent sep

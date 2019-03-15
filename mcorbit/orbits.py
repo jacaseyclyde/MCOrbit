@@ -187,7 +187,9 @@ def angular_momentum(r1, r2):
     """Calculates the angular momentum per unit mass for given apsides.
 
     Calculates the angular momentum per unit mass required for a system
-    to have the given apsides.
+    to have the given apsides. Not used in current implementation, as
+    this runs into issues when the potential encompasses more than a
+    single local minima.
 
     Parameters
     ----------
@@ -234,8 +236,6 @@ def angular_momentum(r1, r2):
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
 
-#    return np.sqrt(2 * (((r2 ** -2) - (r1 ** -2)) ** -1)
-#                   * (potential(r2) - potential(r1)))
     return (r1 * np.sqrt(2 * (E - potential(r1)))).value
 
 
