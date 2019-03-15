@@ -304,7 +304,7 @@ def mass_grad(dist, interp=M_GRAD_INTERP):
         return 0. * u.Msun / u.pc
 
     m_grad = (interp(dist) * mass(dist) * np.log(10)).value
-    return m_grad * u.Msun / u.pc
+    return m_grad * u.pc ** 2 / u.yr ** 2
 
 
 def potential_grad(dist):
@@ -959,24 +959,23 @@ def main():
 #    interp = interp1d(rrtest[2:], grad[2:], kind='cubic', fill_value='extrapolate')
 #    print(brentq(interp, 6., rtest))
 
-#    rmin = .5
-#    rmax = 10.
-#    r0 = .9413703833253498
-#    l_cons = .0001237035540755403
-#
-#    plot_V_eff(rmin, rmax, l_cons)
-#
-#    n_pts = 100
-#    rr = np.linspace(rmin, rmax, num=n_pts)
-#
-#    plt.figure(figsize=FIGSIZE)
-#    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
-#    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
-#    plt.grid()
-#    plt.legend()
-#    plt.show()
-#
-#    plot_orbit(r0, l_cons)
+    # Edge case test for leaky energies
+    rmin = .5
+    rmax = 10.
+    r0 = .9413703833253498
+    l_cons = .0001237035540755403
+
+    n_pts = 100
+    rr = np.linspace(rmin, rmax, num=n_pts)
+
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
+    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+    plot_orbit(r0, l_cons)
 
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
