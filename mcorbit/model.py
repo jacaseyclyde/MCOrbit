@@ -62,6 +62,7 @@ def ln_like(data, model, cov):
     prob = np.zeros(len(data))
 
     # first we sum the model prob for each data pt over all model pts
+    model = model[::2,:]
     for model_pt in model:
         prob += multivariate_normal.pdf(data, mean=model_pt, cov=cov,
                                         allow_singular=True)
@@ -163,3 +164,52 @@ def ln_prob(theta, data, space, cov):
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior
+
+
+if __name__ == '__main__':
+    # code profiling tasks
+    # create theta
+    r0 = .9413703833253498
+    l_cons = .0001237035540755403
+    theta = (34., 43., 37., r0, l_cons)
+
+    # load data
+    import os
+    import astropy.units as u
+    from spectral_cube import SpectralCube, LazyMask
+    from astropy.coordinates import SkyCoord
+
+    cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
+                                          '..', 'dat', 'HNC3_2.fits'))
+
+    # create mask to remove the NaN buffer around the image file later
+    buffer_mask = LazyMask(lambda num: ~np.isnan(num), cube=cube)
+
+    # mask out contents of maskfile as well as low intensity noise
+    mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
+                                               '..', 'dat',
+                                               'HNC3_2.mask.fits'))
+    mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
+    cube = cube.with_mask(mask)
+
+    cube = cube.subcube_from_mask(buffer_mask)
+    cube = cube.with_spectral_unit(u.km / u.s, velocity_convention='radio')
+
+    m1 = cube.moment1()
+    dd, rr = m1.spatial_coordinate_map
+    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
+    c = c.ravel()
+
+    # convert to numpy array and remove nan velocities
+    data_pts = np.array([c.ra.rad,
+                         c.dec.rad,
+                         c.radial_velocity.value]).T
+
+    # strip out anything that's not an actual data point
+    nonnan = ~np.isnan(data_pts[:, 2])
+    data = data_pts[nonnan]
+
+    # covaraince matrix
+    cov = np.cov(data, rowvar=False)
+
+    ln_like(data, orbits.model(theta), cov)
