@@ -50,7 +50,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa
 # =============================================================================
 # User definable constants
 # =============================================================================
-TSTEP = 500  # * u.yr  # timestep
+TSTEP = 100  # * u.yr  # timestep
 FIGSIZE = (12, 12)
 
 # =============================================================================
@@ -397,20 +397,21 @@ def orbit(r0, l_cons):
     # leaving reminders of the units, but doing calculaions without
     # them to improve efficiency. Units will return at end
 #    r0 *= u.pc
-    r_pos = np.array([r0])  # * u.pc
-    r_vel = np.array([0.])  # * u.pc / u.yr
+    r_pos = np.array([r0], dtype=np.float64)  # * u.pc
+    r_vel = np.array([0.], dtype=np.float64)  # * u.pc / u.yr
 
-    ang_pos = np.array([0.])  # * u.rad
+    ang_pos = np.array([0.], dtype=np.float64)  # * u.rad
 
 #    l_cons *= (u.pc ** 2) / u.yr
 
     ang_v0 = l_cons / (r0 ** 2)  # * u.rad
-    ang_vel = np.array([ang_v0])  # * u.rad / u.yr
+    ang_vel = np.array([ang_v0], dtype=np.float64)  # * u.rad / u.yr
 
     while ang_pos[-1] < 2. * np.pi:  # * u.rad:
         # radial portion first
         # first drift
         r_half = r_pos[-1] + 0.5 * TSTEP * r_vel[-1]
+        ang_half = ang_pos[-1] + 0.5 * TSTEP * ang_vel[-1]
 
         # kick
         # check that the particle's original energy is greater than the
@@ -432,14 +433,13 @@ def orbit(r0, l_cons):
         else:
             r_vel_new = r_vel[-1] - TSTEP * V_eff_grad(r_half, l_cons)
 
+        ang_vel_new = l_cons / r_half ** 2  # * u.rad / (r_new ** 2)
+
         # second drift
         r_new = r_half + 0.5 * TSTEP * r_vel_new
         r_pos = np.append(r_pos, r_new)  # * u.pc
         r_vel = np.append(r_vel, r_vel_new)  # * u.pc / u.yr
 
-        # then angular
-        ang_half = ang_pos[-1] + 0.5 * TSTEP * ang_vel[-1]
-        ang_vel_new = l_cons  # * u.rad / (r_new ** 2)
         ang_new = ang_half + 0.5 * TSTEP * ang_vel_new
         ang_pos = np.append(ang_pos, ang_new)  # * u.rad
         ang_vel = np.append(ang_vel, ang_vel_new)  # * u.rad / u.yr
@@ -1106,21 +1106,20 @@ def units_test():
 
 
 def orbits_test():
-    plot_mass(1., 10.)
-    plot_mass_grad(1., 10.)
+    rmin = np.float64(1.)
+    rmax = np.float64(10.)
+    plot_mass(rmin, rmax)
+    plot_mass_grad(rmin, rmax)
 
     n_pts = 100
 
-    r0 = 1.
-    l_cons = angular_momentum(3, 5.)
+    r0 = np.float64(3.)
+    l_cons = np.float64(angular_momentum(r0, 5.))
 
     plot_orbit(r0, l_cons)
 
-    rpos, rvel, theta, thetavel = orbit(3., l_cons)
+    rpos, rvel, theta, thetavel = orbit(r0, l_cons)
     print(np.min(rpos), np.max(rpos))
-
-    rmin = r0
-    rmax = 10.
 
     rr = np.linspace(rmin, rmax, num=n_pts)
     plt.figure(figsize=FIGSIZE)
@@ -1130,15 +1129,14 @@ def orbits_test():
     plt.legend()
     plt.show()
 
-    r0 = .9413703833253498
-    l_cons = .0001237035540755403
-    orb = plot_orbit(r0, l_cons)
+    r0 = np.float64(.9413703833253498)
+    l_cons = np.float64(.0001237035540755403)
+    plot_orbit(r0, l_cons)
 
     rpos, rvel, theta, thetavel = orbit(r0, l_cons)
     print(np.min(rpos), np.max(rpos))
 
     rmin = r0
-    rmax = 10.
     rr = np.linspace(rmin, rmax, num=n_pts)
     plt.figure(figsize=FIGSIZE)
     plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')

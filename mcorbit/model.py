@@ -62,6 +62,7 @@ def ln_like(data, model, cov):
     prob = np.zeros(len(data))
 
     # first we sum the model prob for each data pt over all model pts
+    model = model[::2,:]
     for model_pt in model:
         prob += multivariate_normal.pdf(data, mean=model_pt, cov=cov,
                                         allow_singular=True)
