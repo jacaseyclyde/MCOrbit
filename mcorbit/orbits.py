@@ -50,7 +50,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa
 # =============================================================================
 # User definable constants
 # =============================================================================
-TSTEP = 500 * u.yr  # timestep
+TSTEP = 500  # * u.yr  # timestep
 FIGSIZE = (12, 12)
 
 # =============================================================================
@@ -59,7 +59,7 @@ FIGSIZE = (12, 12)
 GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
                   dec=Angle('-29:0:28.118 degrees'))
 
-G = G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))
+G = (G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))).value
 
 D_SGR_A = 8.127 * u.kpc
 
@@ -76,7 +76,7 @@ M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * D_SGR_A.to(u.pc) / u.rad
 ###### CHECK THESE!!!! CRITICAL!!!!!!!!!
 M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
 # Might be better to switch logM to M now instead of in function
-M_GRAD = np.gradient(M_ENC, M_DIST.value) * u.Msun / u.pc
+M_GRAD = np.gradient(M_ENC, M_DIST.value)  # * u.Msun / u.pc
 ###### EXTREMELY CRITICAL TO CHECK THE ABOVE. ESPECIALLY GRADIENT!!!!!!
 
 
@@ -133,18 +133,57 @@ def mass(dist, interp=M_ENC_INTERP):
     try:
         if dist.unit != u.pc:
             try:
-                dist = dist.to(u.pc)
+                dist = dist.to(u.pc).value
             except u.UnitConversionError as err:
                 raise err
-    except AttributeError as err:
-        # Assume units in pc if no units given
-        dist = dist * u.pc
+    except AttributeError:
+        pass  # Assume units in pc if no units given
+#        dist = dist * u.pc
 
-    if dist == np.inf * u.pc:
-        return np.inf * u.Msun
+    if dist == np.inf:
+        return np.inf  # * u.Msun
 
-    mass_enc = interp(dist)
-    return G * np.power(10, mass_enc) * u.Msun
+    return G * np.power(10, interp(dist))  # * u.Msun
+
+
+def mass_grad(dist, interp=M_GRAD_INTERP):
+    """Automates calculation of the mass gradient.
+
+    Wrapper function to evaluate the derivative of the non-analytic
+    mass fuction at a point.
+
+    Parameters
+    ----------
+    dist : float
+        The distance at which to evaluate the gradient of the spherical
+        mass function.
+    interp : func
+        The mass gradient function to use. Should accept a distance
+        from the source in pc, and return the mass enclosed, in
+        log(Msun). Defaults to interpolations of the gradient of the
+        mass distribution around Sgr A* found by
+        Feldmeier-Krause et al. (2017).
+
+    Returns
+    -------
+    float
+        The estimated rate of change of the mass over the distance.
+
+    """
+    try:
+        if dist.unit != u.pc:
+            try:
+                dist = dist.to(u.pc).value
+            except u.UnitConversionError as err:
+                raise err
+    except AttributeError:
+        pass  # Assume units in pc if no units given
+#        dist = dist * u.pc
+
+    if dist == np.inf:  # * u.pc:
+        return 0.  # * u.Msun / u.pc
+
+    return np.log(10.) * mass(dist) * interp(dist)  # * u.pc ** 2 / u.yr ** 2
 
 
 def potential(dist):
@@ -169,17 +208,98 @@ def potential(dist):
     try:
         if dist.unit != u.pc:
             try:
-                dist = dist.to(u.pc)
+                dist = dist.to(u.pc).value
             except u.UnitConversionError as err:
                 raise err
-    except AttributeError as err:
-        # Assume units in pc if no units given
-        dist = dist * u.pc
+    except AttributeError:
+        pass  # Assume units in pc if no units given
 
     with warnings.catch_warnings(record=True):
         if dist == np.inf:
-            return 0. * (u.pc ** 2) / (u.yr ** 2)
+            return 0.  # * (u.pc ** 2) / (u.yr ** 2)
         return - mass(dist) / dist
+
+
+def potential_grad(dist):
+    """Calculates the gradient of the potential at a point.
+
+    Calculates the approximate gradient of the gravitational potential
+    due to Sgr A* at the point indicated.
+
+    Parameters
+    ----------
+    dist : float
+        The distance from Sgr A* at which to calculate the potential.
+
+    Returns
+    -------
+    float
+        The potential gradient at the given distance in units of
+        pc / yr^2
+
+    Todo
+    ----
+    - Figure out is potential gradient is too high
+
+    """
+    if dist == 0:
+        return np.inf  # * u.pc / (u.yr ** 2)
+
+    return (-1. / dist) * (potential(dist) + mass_grad(dist))
+
+
+@np.vectorize
+def V_eff(r, l):
+    """The effective potential.
+
+    Calculates the effective potential at a point, given the angular
+    angular momentum per unit mass.
+
+    Parameters
+    ----------
+    r : float
+        The point at which to calculate the effective potential.
+    l : float
+        The angular momentum per unit mass.
+
+    Returns
+    -------
+    float
+        The effective potential for a particle of unit mass with
+        angular momentum `l` at point `r`
+
+    """
+    if r == 0. or r ** 2 == 0:
+        return np.inf
+    V_l = (l ** 2) / (2 * (r ** 2))
+    return V_l + potential(r)
+
+
+@np.vectorize
+def V_eff_grad(r, l):
+    """The gradient of the effective potential.
+
+    Calculates the gradient of the effective potential at a point,
+    given the angular angular momentum per unit mass.
+
+    Parameters
+    ----------
+    r : float
+        The point at which to calculate the effective potential
+        gradient.
+    l : float
+        The angular momentum per unit mass.
+
+    Returns
+    -------
+    float
+        The effective potential gradient for a particle of unit mass
+        with angular momentum `l` at point `r`.
+
+    """
+    if r == 0. or r ** 2 == 0:
+        return np.inf
+    return (- (l ** 2) / (r ** 3)) + potential_grad(r)
 
 
 @np.vectorize
@@ -213,22 +333,22 @@ def angular_momentum(r1, r2):
     try:
         if r1.unit != u.pc:
             try:
-                r1 = r1.to(u.pc)
+                r1 = r1.to(u.pc).value
             except u.UnitConversionError as e:
                 raise e
-    except AttributeError as e:
-        # Assume units in pc if no units given
-        r1 = r1 * u.pc
+    except AttributeError:
+        pass  # Assume units in pc if no units given
+#        r1 = r1 * u.pc
 
     try:
         if r2.unit != u.pc:
             try:
-                r2 = r2.to(u.pc)
+                r2 = r2.to(u.pc).value
             except u.UnitConversionError as e:
                 raise e
-    except AttributeError as e:
-        # Assume units in pc if no units given
-        r2 = r2 * u.pc
+    except AttributeError:
+        pass  # Assume units in pc if no units given
+#        r2 = r2 * u.pc
 
     if r1 == r2:
         return (r1 * np.sqrt(-1 * potential(r1) - mass_grad(r1))).value
@@ -236,130 +356,7 @@ def angular_momentum(r1, r2):
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
 
-    return (r1 * np.sqrt(2 * (E - potential(r1)))).value
-
-
-@np.vectorize
-def V_eff(r, l):
-    """The effective potential.
-
-    Calculates the effective potential at a point, given the angular
-    angular momentum per unit mass.
-
-    Parameters
-    ----------
-    r : float
-        The point at which to calculate the effective potential.
-    l : float
-        The angular momentum per unit mass.
-
-    Returns
-    -------
-    float
-        The effective potential for a particle of unit mass with
-        angular momentum `l` at point `r`
-
-    """
-    if r == 0. or r ** 2 == 0:
-        return np.inf
-    V_l = (l ** 2) / (2 * (r ** 2))
-    return V_l + potential(r).value
-
-
-def mass_grad(dist, interp=M_GRAD_INTERP):
-    """Automates calculation of the mass gradient.
-
-    Wrapper function to evaluate the derivative of the non-analytic
-    mass fuction at a point.
-
-    Parameters
-    ----------
-    dist : float
-        The distance at which to evaluate the gradient of the spherical
-        mass function.
-    interp : func
-        The mass gradient function to use. Should accept a distance
-        from the source in pc, and return the mass enclosed, in
-        log(Msun). Defaults to interpolations of the gradient of the
-        mass distribution around Sgr A* found by
-        Feldmeier-Krause et al. (2017).
-
-    Returns
-    -------
-    float
-        The estimated rate of change of the mass over the distance.
-
-    """
-    try:
-        if dist.unit != u.pc:
-            try:
-                dist = dist.to(u.pc)
-            except u.UnitConversionError as err:
-                raise err
-    except AttributeError as err:
-        # Assume units in pc if no units given
-        dist = dist * u.pc
-
-    if dist == np.inf * u.pc:
-        return 0. * u.Msun / u.pc
-
-    m_grad = (interp(dist) * mass(dist) * np.log(10)).value
-    return m_grad * u.pc ** 2 / u.yr ** 2
-
-
-def potential_grad(dist):
-    """Calculates the gradient of the potential at a point.
-
-    Calculates the approximate gradient of the gravitational potential
-    due to Sgr A* at the point indicated.
-
-    Parameters
-    ----------
-    dist : float
-        The distance from Sgr A* at which to calculate the potential.
-
-    Returns
-    -------
-    float
-        The potential gradient at the given distance in units of
-        pc / yr^2
-
-    Todo
-    ----
-    - Figure out is potential gradient is too high
-
-    """
-    if dist == 0:
-        return np.inf * u.pc / (u.yr ** 2)
-
-    return (-1. / dist) * (potential(dist) + mass_grad(dist))
-
-
-@np.vectorize
-def V_eff_grad(r, l):
-    """The gradient of the effective potential.
-
-    Calculates the gradient of the effective potential at a point,
-    given the angular angular momentum per unit mass.
-
-    Parameters
-    ----------
-    r : float
-        The point at which to calculate the effective potential
-        gradient.
-    l : float
-        The angular momentum per unit mass.
-
-    Returns
-    -------
-    float
-        The effective potential gradient for a particle of unit mass
-        with angular momentum `l` at point `r`.
-
-    """
-    if r == 0. or r ** 2 == 0:
-        return np.inf
-    return (- (l ** 2) / (r ** 3)) + potential_grad(r).value
+    return (r1 * np.sqrt(2 * (E - potential(r1))))
 
 
 def orbit(r0, l_cons):
@@ -397,18 +394,20 @@ def orbit(r0, l_cons):
     E = V_eff(r0, l_cons)
 
     # sticking to 2D polar for initial integration since z = 0
-    r0 *= u.pc
-    r_pos = np.array([r0.value]) * u.pc
-    r_vel = np.array([0.]) * u.pc / u.yr
+    # leaving reminders of the units, but doing calculaions without
+    # them to improve efficiency. Units will return at end
+#    r0 *= u.pc
+    r_pos = np.array([r0])  # * u.pc
+    r_vel = np.array([0.])  # * u.pc / u.yr
 
-    ang_pos = np.array([0.]) * u.rad
+    ang_pos = np.array([0.])  # * u.rad
 
-    l_cons *= (u.pc ** 2) / u.yr
+#    l_cons *= (u.pc ** 2) / u.yr
 
-    ang_v0 = l_cons / (r0 ** 2) * u.rad
-    ang_vel = np.array([ang_v0.value]) * u.rad / u.yr
+    ang_v0 = l_cons / (r0 ** 2)  # * u.rad
+    ang_vel = np.array([ang_v0])  # * u.rad / u.yr
 
-    while ang_pos[-1] < 2 * np.pi * u.rad:
+    while ang_pos[-1] < 2. * np.pi:  # * u.rad:
         # radial portion first
         # first drift
         r_half = r_pos[-1] + 0.5 * TSTEP * r_vel[-1]
@@ -428,26 +427,25 @@ def orbit(r0, l_cons):
         # 4. Check the current calculations for the acceleration for
         #    simplifications that can be made (esp. any that reduce the
         #    order or range of the order of calculations performed).
-        if E <= V_eff(r_half.value, l_cons.value):
-            r_vel_new = TSTEP * ((l_cons ** 2) / (r_half ** 3)
-                                 - potential_grad(r_half))
+        if E <= V_eff(r_half, l_cons):
+            r_vel_new = -1. * TSTEP * V_eff_grad(r_half, l_cons)
         else:
-            r_vel_new = r_vel[-1] + TSTEP * (((l_cons ** 2) / (r_half ** 3))
-                                             - potential_grad(r_half))
+            r_vel_new = r_vel[-1] - TSTEP * V_eff_grad(r_half, l_cons)
 
         # second drift
         r_new = r_half + 0.5 * TSTEP * r_vel_new
-        r_pos = np.append(r_pos.value, r_new.value) * u.pc
-        r_vel = np.append(r_vel.value, r_vel_new.value) * u.pc / u.yr
+        r_pos = np.append(r_pos, r_new)  # * u.pc
+        r_vel = np.append(r_vel, r_vel_new)  # * u.pc / u.yr
 
         # then angular
         ang_half = ang_pos[-1] + 0.5 * TSTEP * ang_vel[-1]
-        ang_vel_new = l_cons * u.rad / (r_new ** 2)
+        ang_vel_new = l_cons  # * u.rad / (r_new ** 2)
         ang_new = ang_half + 0.5 * TSTEP * ang_vel_new
-        ang_pos = np.append(ang_pos.value, ang_new.value) * u.rad
-        ang_vel = np.append(ang_vel.value, ang_vel_new.value) * u.rad / u.yr
+        ang_pos = np.append(ang_pos, ang_new)  # * u.rad
+        ang_vel = np.append(ang_vel, ang_vel_new)  # * u.rad / u.yr
 
-    return r_pos, r_vel, ang_pos, ang_vel
+    return (r_pos * u.pc, r_vel * u.pc / u.yr,
+            ang_pos * u.rad, ang_vel * u.rad / u.yr)
 
 
 # =============================================================================
@@ -642,7 +640,7 @@ def plot_mass(r1, r2):
 
     """
     r_pos = np.linspace(r1, r2, num=100)
-    mass_r = [mass(r).value for r in r_pos]
+    mass_r = [mass(r) for r in r_pos]
 
     plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, mass_r)
@@ -674,7 +672,7 @@ def plot_mass_grad(r1, r2):
 
     """
     r_pos = np.linspace(r1, r2, num=100)
-    mass_grad_r = [mass_grad(r).value for r in r_pos]
+    mass_grad_r = [mass_grad(r) for r in r_pos]
 
     plt.figure(figsize=FIGSIZE)
     plt.plot(r_pos, mass_grad_r)
@@ -896,7 +894,7 @@ def plot_velocity(r1, r2):
 # =============================================================================
 # Main function
 # =============================================================================
-def main():
+def analysis():
     # set initial variables
 #    r1 = .5
 #    r2 = 2.
@@ -965,15 +963,7 @@ def main():
     r0 = .9413703833253498
     l_cons = .0001237035540755403
 
-    n_pts = 100
-    rr = np.linspace(rmin, rmax, num=n_pts)
 
-    plt.figure(figsize=FIGSIZE)
-    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
-    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
-    plt.grid()
-    plt.legend()
-    plt.show()
 
     plot_orbit(r0, l_cons)
 
@@ -1089,11 +1079,78 @@ def main():
 #    print("r_2 = {0:.4f}".format(r2))
 #    print("r_max = {0:.4f}".format(np.max(r_pos)))
 #    print("r_min = {0:.4f}".format(np.min(r_pos)))
-
-#    return V_min, V_grad_min, V_max, V_grad_max, bounds
     return
 
 
+def profile_test():
+    units_test()
+
+    r0 = .9413703833253498
+    l_cons = .0001237035540755403
+    theta = (34., 43., 37., r0, l_cons)
+    model(theta)
+
+
+def units_test():
+    r = 1.
+    print(r)
+    print(mass(r))
+    print(potential(r))
+    l = angular_momentum(r, 2.)
+    print(l)
+    print(V_eff(r, l))
+    print(mass_grad(r))
+    print(potential_grad(r))
+    print(V_eff_grad(r, l))
+    print(orbit(r, l))
+
+
+def orbits_test():
+    plot_mass(1., 10.)
+    plot_mass_grad(1., 10.)
+
+    n_pts = 100
+
+    r0 = 1.
+    l_cons = angular_momentum(3, 5.)
+
+    plot_orbit(r0, l_cons)
+
+    rpos, rvel, theta, thetavel = orbit(3., l_cons)
+    print(np.min(rpos), np.max(rpos))
+
+    rmin = r0
+    rmax = 10.
+
+    rr = np.linspace(rmin, rmax, num=n_pts)
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
+    plt.hlines(V_eff(3., l_cons), rmin, rmax, linestyles='dashed', label='V0')
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+    r0 = .9413703833253498
+    l_cons = .0001237035540755403
+    orb = plot_orbit(r0, l_cons)
+
+    rpos, rvel, theta, thetavel = orbit(r0, l_cons)
+    print(np.min(rpos), np.max(rpos))
+
+    rmin = r0
+    rmax = 10.
+    rr = np.linspace(rmin, rmax, num=n_pts)
+    plt.figure(figsize=FIGSIZE)
+    plt.plot(rr, [V_eff(r, l_cons) for r in rr], label='V_eff')
+    plt.hlines(V_eff(r0, l_cons), rmin, rmax, linestyles='dashed', label='V0')
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+
 if __name__ == '__main__':
-#    V_min, V_grad_min, V_max, V_grad_max, bounds = main()
-    main()
+
+#    profile_test()
+    orbits_test()
+
+#    analysis()
