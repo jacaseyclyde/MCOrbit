@@ -95,8 +95,6 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
     pos_min = pspace[:, 0]
     pos_max = pspace[:, 1]
     prange = pos_max - pos_min
-#    prange[-1] = .5 * prange[-1]
-#    prange[-2] = .5 * prange[-2]
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
     cov = np.cov(data, rowvar=False)
 
@@ -140,9 +138,8 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
                 break
             old_tau = tau
 
-            arr_tau = tau.reshape(1, len(tau))
             with open(os.path.join(outpath, 'acor.csv'), mode='a') as f:
-                np.savetxt(f, arr_tau, delimiter=',')
+                np.savetxt(f, tau.reshape(1, len(tau)), delimiter=',')
 
         try:
             tau = sampler.get_autocorr_time()
