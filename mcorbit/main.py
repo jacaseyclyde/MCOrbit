@@ -548,7 +548,7 @@ def main(pool, args):
     r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
     lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
                                             - orbits.potential(r_p_lb)))
-            / ((r_a_lb ** 2) - (r_p_lb ** 2)))).value
+            / ((r_a_lb ** 2) - (r_p_lb ** 2))))
 
     # our upper bound on the radius is determined by the position of
     # the furthest local maximum
@@ -556,12 +556,12 @@ def main(pool, args):
     r_p_ub = 6.  # r_a_lb
     lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
                                             - orbits.potential(r_p_ub)))
-            / ((r_a_ub ** 2) - (r_p_ub ** 2)))).value
+            / ((r_a_ub ** 2) - (r_p_ub ** 2))))
 
     # set up priors and do MCMC. angular momentum bounds are based on
     # the maximum radius
     p_aop = [-90., 90.]  # argument of periapsis
-    p_loan = [90, 270.]  # longitude of ascending node
+    p_loan = [90., 270.]  # longitude of ascending node
     p_inc = [90., 270.]  # inclination
     p_rp = [r_p_lb, r_p_ub]  # starting radial distance
     p_l = [lmin, lmax]  # ang. mom.
@@ -569,8 +569,7 @@ def main(pool, args):
                        p_loan,
                        p_inc,
                        p_rp,
-                       p_l
-                       ])
+                       p_l], dtype=np.float64)
     np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
     samples = mcmc.fit_orbits(pool, ln_prob, data, pspace,
@@ -593,7 +592,7 @@ def main(pool, args):
           "r_per: {3}, r_ap: {4}".format(*pbest))
     plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
 
-#    theta = (0., 20., 11., 2., 0.00010837)
+#    theta = (35., 205., 205., 2.6, 0.00012)
 #    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', theta)
 
     # bit of cleanup
