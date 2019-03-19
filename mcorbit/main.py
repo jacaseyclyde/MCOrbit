@@ -79,7 +79,7 @@ FILETYPE = 'pdf'
 
 GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
                   dec=Angle('-29:0:28.118 degrees'))
-D_SGR_A = 8. * u.kpc
+D_SGR_A = 8.127 * u.kpc
 
 
 # =============================================================================
