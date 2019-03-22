@@ -49,7 +49,7 @@ import schwimmbad  # noqa
 
 import numpy as np  # noqa
 
-from scipy.optimize import brentq
+from scipy.optimize import brentq  # noqa
 
 import astropy.units as u  # noqa
 from astropy.coordinates import SkyCoord, FK5, ICRS, Angle  # noqa
@@ -62,12 +62,9 @@ import matplotlib.pyplot as plt  # noqa
 import corner  # noqa
 import aplpy  # noqa
 
-import emcee  # noqa
-
 from mcorbit import orbits  # noqa
 from mcorbit.model import ln_prob  # noqa
-from mcorbit import mcmc
-from mcorbit import model
+from mcorbit import mcmc  # noqa
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
