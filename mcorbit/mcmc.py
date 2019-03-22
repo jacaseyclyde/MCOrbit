@@ -152,8 +152,8 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         print("Mean autocorrelation time: {0:.3f} steps"
               .format(np.mean(tau)))
 
-        burnin = int(2 * np.nanmax(tau))
-        thin = int(0.5 * np.nanmin(tau))
+        burnin = int(2 * np.max(tau))
+        thin = int(0.5 * np.min(tau))
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
         log_prob_samples = sampler.get_log_prob(discard=burnin,
                                                 flat=True, thin=thin)
@@ -167,7 +167,4 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         print("flat log prob shape: {0}".format(log_prob_samples.shape))
         print("flat log prior shape: {0}".format(log_prior_samples.shape))
 
-        all_samples = np.concatenate((samples, log_prob_samples[:, None],
-                                      log_prior_samples[:, None]), axis=1)
-
-    return all_samples
+    return samples

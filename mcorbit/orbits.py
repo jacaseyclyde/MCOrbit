@@ -444,6 +444,9 @@ def orbit(r0, l_cons):
         ang_pos = np.append(ang_pos, ang_new)  # * u.rad
         ang_vel = np.append(ang_vel, ang_vel_new)  # * u.rad / u.yr
 
+        if r_new == 0.:
+            break
+
     return (r_pos * u.pc, r_vel * u.pc / u.yr,
             ang_pos * u.rad, ang_vel * u.rad / u.yr)
 
@@ -595,11 +598,8 @@ def model(theta, coords=False):
     aop, loan, inc, r0, l_cons = theta
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
-        try:
-            pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
-        except Warning:
-            raise ValueError("orbits params: {0}, {1}".format(theta[-2],
-                             theta[-1]))
+        pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
+
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
     if coords:

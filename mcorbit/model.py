@@ -63,7 +63,7 @@ def ln_like(data, model, cov):
 
     # first we sum the model prob for each data pt over all model pts
     # taking every other model point to improve computation time
-    model = model[::2,:]
+    model = model[::2, :]
     for model_pt in model:
         prob += multivariate_normal.pdf(data, mean=model_pt, cov=cov,
                                         allow_singular=True)

@@ -46,6 +46,7 @@ warnings.filterwarnings("ignore", message="The mpl_toolkits.axes_grid module "
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 import schwimmbad  # noqa
+import emcee
 
 import numpy as np  # noqa
 
@@ -253,7 +254,7 @@ def _model_plot(img, mdl, bounds, params, flags):
                  c='black', marker='o', ms=5, linestyle='None')
 
         # add scale bar
-        scale = (((.5 * u.pc) / (8. * u.kpc)) * u.rad).to(u.deg).value
+        scale = (((.5 * u.pc) / D_SGR_A) * u.rad).to(u.deg).value
         plt.plot((266.40 + scale, 266.40), (-29.024, -29.024), 'k-')
         plt.text(266.40 + 0.5 * scale, -29.024, '0.5 pc',
                  horizontalalignment='center', verticalalignment='bottom')
@@ -453,8 +454,8 @@ def corner_plot(samples, prange, fit, args):
     fig.set_size_inches(12, 12)
 
     plt.savefig(os.path.join(OUTPATH, STAMP, 'corner_w{0}_it{1}.pdf'
-                             .format(args.WALKERS, args.NMAX),
-                             bbox_inches='tight'))
+                             .format(args.WALKERS, args.NMAX)),
+                bbox_inches='tight')
 
 
 def plot_acor(acor):
@@ -571,6 +572,13 @@ def main(pool, args):
                               burn=args.BURN, reset=False, mpi=args.MPI,
                               outpath=os.path.join(OUTPATH, STAMP))
 
+#    reader = emcee.backends.HDFBackend('../out/20190320/chain.h5')
+#
+#    tau = reader.get_autocorr_time(tol=0)
+#    burnin = int(2*np.max(tau))
+#    thin = int(.5*np.min(tau))
+#    samples = reader.get_chain(discard=burnin, flat=True, thin=thin)
+
     # analyze the walker data
     aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                                         zip(*np.percentile(samples,
@@ -581,13 +589,18 @@ def main(pool, args):
     corner_plot(samples, pspace, pbest, args)
 
     # print the best parameters found and plot the fit
+    print(r_a_lb)
     print("Best Fit")
     print("aop: {0}, loan: {1}, inc: {2}, "
-          "r_per: {3}, r_ap: {4}".format(*pbest))
+          "r_per: {3}, l: {4}".format(*pbest))
     plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
 
-#    theta = (35., 205., 205., 2.6, 0.00012)
-#    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', theta)
+    theta = (aop[0] - .5 * aop[2],
+             loan[0] - .5 * loan[2],
+             inc[0] - .5 * inc[2],
+             r_per[0] - 0.75 * r_per[2],
+             l_cons[0] - l_cons[2])
+    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked_test', theta)
 
     # bit of cleanup
     if not os.listdir(OUTPATH):
