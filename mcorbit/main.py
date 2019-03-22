@@ -425,7 +425,7 @@ def plot_moment(cube, moment, prefix):
     return
 
 
-def corner_plot(walkers, prange, args):
+def corner_plot(samples, prange, fit, args):
     """Wrapper function for creating and saving graphs of the parameter space.
 
     Creates and saves a corner plot of the parameter space we are doing MCMC
@@ -444,15 +444,12 @@ def corner_plot(walkers, prange, args):
         Name of the file to save the plot to.
 
     """
-    samples_min = np.min(walkers[walkers[:, -2] != -np.inf], axis=0)
-    samples_max = np.max(walkers[walkers[:, -2] != -np.inf], axis=0)
-    prange = np.array([samples_min, samples_max]).T
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
-    fig = corner.corner(walkers,
-                        labels=["$aop$", "$loan$", "$inc$", "$r_p$", "$l$",
-                                "log prob", "log prior"],
-                                range=prange)
+    fig = corner.corner(samples,
+                        labels=["$\omega$", "$\Omega$", "$i$", "$r_p$", "$l$"],
+                        quantiles=[.16, .84], truths=fit)
+
     fig.set_size_inches(12, 12)
 
     plt.savefig(os.path.join(OUTPATH, STAMP, 'corner_w{0}_it{1}.pdf'
@@ -574,14 +571,14 @@ def main(pool, args):
                               burn=args.BURN, reset=False, mpi=args.MPI,
                               outpath=os.path.join(OUTPATH, STAMP))
 
-    corner_plot(samples, pspace, args)
-
     # analyze the walker data
     aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                                         zip(*np.percentile(samples,
                                                            [16, 50, 84],
                                                            axis=0)))
     pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
+
+    corner_plot(samples, pspace, pbest, args)
 
     # print the best parameters found and plot the fit
     print("Best Fit")
