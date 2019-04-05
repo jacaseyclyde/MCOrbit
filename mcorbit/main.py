@@ -97,7 +97,7 @@ def _notnan(num):
 # Data fandling functions
 # =============================================================================
 
-def import_data(cubefile, maskfile=None):
+def import_data(cubefile, maskfile=None, clean=True):
     """Pipeline function that processes spectral data.
 
     Imports spectral cube data and filters out background noise. Noise filter
@@ -125,15 +125,18 @@ def import_data(cubefile, maskfile=None):
     # create mask to remove the NaN buffer around the image file later
     buffer_mask = LazyMask(_notnan, cube=cube)
 
+    # few times rms for thresholding
+    rms = 4. * np.sqrt(np.nanmean(np.square(cube.hdu.data)))
+
     # mask out contents of maskfile as well as low intensity noise
     if maskfile is not None:
         mask_cube = SpectralCube.read(maskfile)
-        mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
+        mask = (mask_cube == u.Quantity(1)) & (cube > rms * u.Jy / u.beam)
+        cube = cube.with_mask(mask)
 
-    else:
-        mask = cube > 0.1 * u.Jy / u.beam
-
-    cube = cube.with_mask(mask)
+    elif clean:
+        mask = cube > rms * u.Jy / u.beam
+        cube = cube.with_mask(mask)
 
     cube = cube.subcube_from_mask(buffer_mask)
     return cube.with_spectral_unit(u.km / u.s, velocity_convention='radio')
@@ -229,8 +232,8 @@ def _model_plot(img, mdl, bounds, params, flags):
     # pylint: disable=E1101, W1401, C0103
     # start the basics of the plot
     fig = plt.figure(figsize=FIGSIZE)
-    plt.imshow(img, origin='lower', cmap='jet', figure=fig, aspect='auto',
-               extent=bounds)
+    plt.imshow(img, origin='lower', cmap='jet',
+               figure=fig, aspect='auto', extent=bounds)
 
     # Add the model
     plt.plot(mdl[0], mdl[1], 'k--',
@@ -304,7 +307,7 @@ def _model_plot(img, mdl, bounds, params, flags):
     return fig
 
 
-def plot_model(cube, prefix, params):
+def plot_model(cube, prefix, params=None, r=None):
     """Plots the model in 3 graphs depicting each plane of the ppv space
 
     Plots an orbit model (as defined by `params`) over the data, showing all 3
@@ -330,29 +333,104 @@ def plot_model(cube, prefix, params):
 
     ra_dec = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
 
-    # get the model for the given parameters
-    c = orbits.model(params, coords=True)
+    if r is not None:
+        aop, loan, inc, _, __ = params
+        ones = np.ones(360)
+        orbit = (ones * r * u.pc,
+                 ones * 0. * u.pc / u.yr,
+                 np.linspace(0., 2. * np.pi, 360) * u.rad,
+                 np.sqrt((orbits.mass(r) / (r ** 3))) * u.rad / u.yr)
+        pos, vel = orbits.polar_to_cartesian(*orbit)
+
+        pos, vel = orbits.orbit_rotator(pos, vel, aop, loan, inc)
+        c = orbits.sky_coords(pos, vel)
+    else:
+        # get the model for the given parameters
+        c = orbits.model(params, coords=True)
+
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
     vel = c.radial_velocity.value
 
+    m0 = ra_dec.moment0(axis=0)
+    print(ra_dec.shape)
+    print(m0.shape)
+
     # plot dec vs ra
-    f = _model_plot(ra_dec.moment0(axis=0).array, [ra, dec],
-                    [ra_max, ra_min, dec_min, dec_max], params, ['ra', 'dec'])
-    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_ra_dec.{1}'
+#    f = _model_plot(ra_dec.moment0(axis=0).array, [ra, dec],
+#                    [ra_max, ra_min, dec_min, dec_max], params, ['ra', 'dec'])
+
+    # plot data
+    f = aplpy.FITSFigure(m0.hdu, figsize=FIGSIZE)
+    f.set_xaxis_coord_type('longitude')
+    f.set_yaxis_coord_type('latitude')
+
+    # add Sgr A*
+    gc = ICRS(ra=Angle('17h45m40.0409s'),
+              dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
+    gcra = gc.ra.value
+    gcdec = gc.dec.value
+    f.show_markers(gcra, gcdec, layer='sgra', label='Sgr A*',
+                   edgecolor='black', facecolor='black', marker='o', s=10)
+
+    f.show_lines([np.array([ra.tolist(), dec.tolist()])], layer='model',
+                 color='black', linestyle='dashed',
+                 label='Best Fit ($\omega = {0:.2f}, \Omega = {1:.2f}, '
+                 'i = {2:.2f}$)'.format(aop, loan, inc))
+
+    plt.legend()
+
+    # add meta information
+    f.ticks.show()
+    f.add_beam(linestyle='solid', facecolor='white',
+               edgecolor='black', linewidth=1)
+    f.add_scalebar(((.5 * u.pc) / D_SGR_A * u.rad))
+    f.scalebar.set_label('0.5 pc')
+
+    f.show_colorscale()
+    f.add_colorbar()
+#    f.colorbar.set_axis_label_text(z_unit)
+
+    # get pixel coords of Sgr A* before plotting
+    sgrastar_x, sgrastar_y = f.world2pixel(gcra, gcdec)
+
+    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model.{1}'
                            .format(prefix, FILETYPE)))
 
-    # plot velocity vs ra
-    f = _model_plot(cube.moment0(axis=1).array, [ra, vel],
-                    [ra_max, ra_min, vmin, vmax], params, ['ra', 'vel'])
-    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_ra_v.{1}'.format(prefix,
-              FILETYPE)))
+    # position angle plot
+    xx, yy = np.meshgrid(np.arange(0, m0.shape[0]), np.arange(0, m0.shape[1]))
 
-    # plot dec vs v
-    f = _model_plot(cube.moment0(axis=2).array, [dec, vel],
-                    [dec_min, dec_max, vmin, vmax], params, ['dec', 'vel'])
-    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_dec_v.{1}'
-                           .format(prefix, FILETYPE)))
+    zero_x = xx - sgrastar_x  # center the pixel indices on the black hole
+    zero_y = yy - sgrastar_y
+
+    theta = np.arctan2(zero_y, zero_x)  # define a new coordinate theta
+    theta = (theta + np.pi) * 180.0 / np.pi
+    r = np.sqrt(zero_x ** 2 + zero_y ** 2)  # define a new coordinate r
+
+    whereplus = np.where(theta < 270)
+    whereminus = np.where(theta >= 270)
+
+    # Tweak theta to match the astronomical norm (defined as east of north)
+    theta[whereplus] = theta[whereplus] + 90
+    theta[whereminus] = theta[whereminus] - 270
+
+    # set up position angle
+    pos_ang = np.zeros((360, ra_dec.shape[0]))
+    for i in np.arange(360):
+        wheretheta = np.where((theta > i) * (theta < i+1))
+        wherex = xx[wheretheta]
+        wherey = yy[wheretheta]
+        print(np.shape(wheretheta))
+        print(np.shape(theta))
+        pos_ang[i, :] = m0.array[wherey, wherex]
+
+    pos_ang = np.rot90(pos_ang)
+
+    plt.figure(figsize=(12, 7))
+    plt.imshow(pos_ang, extent=[0, 360, vmin, vmax])
+    plt.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_pa.{1}'
+                             .format(prefix, FILETYPE)),
+                bbox_inches='tight')
 
 
 def plot_moment(cube, moment, prefix):
@@ -373,7 +451,7 @@ def plot_moment(cube, moment, prefix):
 
     """
     # only make file if it doesnt already exist
-    filename = os.path.join(OUTPATH, '{0}_moment_{1}.{2}'
+    filename = os.path.join(OUTPATH, 'cnd', '{0}_moment_{1}.{2}'
                             .format(prefix, moment, FILETYPE))
     with Path(filename) as file:
         if file.exists():
@@ -407,7 +485,7 @@ def plot_moment(cube, moment, prefix):
     ra = gc.ra.value
     dec = gc.dec.value
     f.show_markers(ra, dec, layer='sgra', label='Sgr A*',
-                   edgecolor='black', facecolor='black', marker='o', s=10,)
+                   edgecolor='black', facecolor='black', marker='o', s=10)
 
     plt.legend()
 
@@ -415,7 +493,7 @@ def plot_moment(cube, moment, prefix):
     f.ticks.show()
     f.add_beam(linestyle='solid', facecolor='white',
                edgecolor='black', linewidth=1)
-    f.add_scalebar(((.5 * u.pc) / (8. * u.kpc)) * u.rad)
+    f.add_scalebar(((.5 * u.pc) / D_SGR_A * u.rad))
     f.scalebar.set_label('0.5 pc')
 
     f.show_colorscale()
@@ -448,8 +526,8 @@ def corner_plot(samples, prange, fit, args):
     # TODO: update the docstring entry for walkers with their structure
     # TODO: Fix labels
     fig = corner.corner(samples,
-                        labels=["$\omega$", "$\Omega$", "$i$", "$r_p$", "$l$"],
-                        quantiles=[.16, .84], truths=fit)
+                        labels=["$\omega$", "$\Omega$", "$i$", "$r_p$", "$l$"])
+#                        quantiles=[.16, .84], truths=fit)
 
     fig.set_size_inches(12, 12)
 
@@ -493,11 +571,79 @@ def main(pool, args):
         pass
 
     print("Loading Data...")
-    # load data
-    hnc3_2_cube = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                    '..', 'dat',
-                                                    'HNC3_2.fits'),
-                              maskfile=None)
+    # load plot data
+    hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                               '..', 'dat', 'HNC3_2.fits'),
+                         clean=False)
+#    hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                    '..', 'dat',
+#                                                    'HCN3_2.fits'), clean=False)
+#    hcn4_3 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                    '..', 'dat',
+#                                                    'HCN4_3.fits'), clean=False)
+#    hco3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                    '..', 'dat',
+#                                                    'HCO+3_2.fits'), clean=False)
+#    so56_45 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                    '..', 'dat',
+#                                                    'SO56_45.fits'), clean=False)
+
+#    hcn3_2 = hcn3_2.reproject(hnc3_2.header)
+#    hcn4_3 = hcn4_3.reproject(hnc3_2.header)
+#    hco3_2 = hco3_2.reproject(hnc3_2.header)
+#    so56_45 = so56_45.reproject(hnc3_2.header)
+
+    # plot lines
+#    plot_moment(hnc3_2, moment=0, prefix='HNC3_2_raw')
+#    plot_moment(hcn3_2, moment=0, prefix='HCN3_2_raw')
+#    plot_moment(hcn4_3, moment=0, prefix='HCN4_3_raw')
+#    plot_moment(hco3_2, moment=0, prefix='HCO+3_2_raw')
+#    plot_moment(so56_45, moment=0, prefix='SO56_45_raw')
+
+    # load data without rms background
+#    hnc3_2_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                     '..', 'dat',
+#                                                     'HNC3_2.fits'))
+#    hcn3_2_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                     '..', 'dat',
+#                                                     'HCN3_2.fits'))
+#    hcn4_3_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                     '..', 'dat',
+#                                                     'HCN4_3.fits'))
+#    hco3_2_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                     '..', 'dat',
+#                                                     'HCO+3_2.fits'))
+#    so56_45_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+#                                                      '..', 'dat',
+#                                                      'SO56_45.fits'))
+
+#    hcn3_2_clean = hcn3_2_clean.reproject(hnc3_2_clean.header)
+#    hcn4_3_clean = hcn4_3_clean.reproject(hnc3_2_clean.header)
+#    hco3_2_clean = hco3_2_clean.reproject(hnc3_2_clean.header)
+#    so56_45_clean = so56_45_clean.reproject(hnc3_2_clean.header)
+
+    # plot the first 3 moments of each cube
+#    plot_moment(hnc3_2_clean, moment=0, prefix='HNC3_2')
+#    plot_moment(hnc3_2_clean, moment=1, prefix='HNC3_2')
+#    plot_moment(hnc3_2_clean, moment=2, prefix='HNC3_2')
+#
+#    plot_moment(hcn3_2_clean, moment=0, prefix='HCN3_2')
+#    plot_moment(hcn3_2_clean, moment=1, prefix='HCN3_2')
+#    plot_moment(hcn3_2_clean, moment=2, prefix='HCN3_2')
+#
+#    plot_moment(hcn4_3_clean, moment=0, prefix='HCN4_3')
+#    plot_moment(hcn4_3_clean, moment=1, prefix='HCN4_3')
+#    plot_moment(hcn4_3_clean, moment=2, prefix='HCN4_3')
+#
+#    plot_moment(hco3_2_clean, moment=0, prefix='HCO+3_2')
+#    plot_moment(hco3_2_clean, moment=1, prefix='HCO+3_2')
+#    plot_moment(hco3_2_clean, moment=2, prefix='HCO+3_2')
+#
+#    plot_moment(so56_45_clean, moment=0, prefix='SO56_45')
+#    plot_moment(so56_45_clean, moment=1, prefix='SO56_45')
+#    plot_moment(so56_45_clean, moment=2, prefix='SO56_45')
+
+    # mask the data
     masked_hnc3_2_cube = import_data(cubefile=os.path.join(
                                      os.path.dirname(__file__),
                                      '..', 'dat', 'HNC3_2.fits'),
@@ -505,14 +651,13 @@ def main(pool, args):
                                              os.path.dirname(__file__),
                                              '..', 'dat', 'HNC3_2.mask.fits'))
 
-    # plot the first 3 moments of each cube
-    plot_moment(hnc3_2_cube, moment=0, prefix='HNC3_2')
-    plot_moment(hnc3_2_cube, moment=1, prefix='HNC3_2')
-    plot_moment(hnc3_2_cube, moment=2, prefix='HNC3_2')
-
-    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+    # plot the first 3 moments of the masked cubes
+#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
+#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
+#
+#    plot_model(masked_hnc3_2_cube, 'HNC3_2_Martin',
+#               (90., 90., 30., 0., 0.), r=1.6)
 
     print("Plotting complete!")
 
@@ -567,17 +712,19 @@ def main(pool, args):
                        p_l], dtype=np.float64)
     np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
-    samples = mcmc.fit_orbits(pool, ln_prob, data, pspace,
-                              nwalkers=args.WALKERS, nmax=args.NMAX,
-                              burn=args.BURN, reset=False, mpi=args.MPI,
-                              outpath=os.path.join(OUTPATH, STAMP))
+#    samples = mcmc.fit_orbits(pool, ln_prob, data, pspace,
+#                              nwalkers=args.WALKERS, nmax=args.NMAX,
+#                              burn=args.BURN, reset=False, mpi=args.MPI,
+#                              outpath=os.path.join(OUTPATH, STAMP))
 
-#    reader = emcee.backends.HDFBackend('../out/20190320/chain.h5')
-#
-#    tau = reader.get_autocorr_time(tol=0)
-#    burnin = int(2*np.max(tau))
-#    thin = int(.5*np.min(tau))
-#    samples = reader.get_chain(discard=burnin, flat=True, thin=thin)
+    reader = emcee.backends.HDFBackend('../out/20190322/chain.h5')
+
+    tau = reader.get_autocorr_time()
+    burnin = int(2*np.max(tau))
+    thin = int(.5*np.min(tau))
+    samples = reader.get_chain(discard=1000, flat=True, thin=200)
+    print(samples.shape)
+    print(reader.get_chain(flat=True).shape)
 
     # analyze the walker data
     aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
@@ -587,6 +734,7 @@ def main(pool, args):
     pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
 
     corner_plot(samples, pspace, pbest, args)
+    return
 
     # print the best parameters found and plot the fit
     print(r_a_lb)
@@ -610,6 +758,7 @@ def main(pool, args):
 
 
 if __name__ == '__main__':
+    plt.rcParams.update({'font.size': 22})
     # Parse command line arguments
     PARSER = argparse.ArgumentParser()
 

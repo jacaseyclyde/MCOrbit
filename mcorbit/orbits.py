@@ -67,7 +67,8 @@ D_SGR_A = 8.127 * u.kpc
 # Default data
 # =============================================================================
 M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
-                                   '../dat/enclosed_mass_distribution.txt'))
+                                   '..', 'dat',
+                                   'enclosed_mass_distribution.txt'))
 M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * D_SGR_A.to(u.pc) / u.rad
 
 
