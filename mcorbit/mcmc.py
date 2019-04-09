@@ -141,30 +141,4 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
             with open(os.path.join(outpath, 'acor.csv'), mode='a') as f:
                 np.savetxt(f, tau.reshape(1, len(tau)), delimiter=',')
 
-        try:
-            tau = sampler.get_autocorr_time()
-        except Exception:
-            tau = sampler.get_autocorr_time(tol=0)
-
-        print("Mean acceptance fraction: {0:.3f}"
-              .format(np.mean(sampler.acceptance_fraction)))
-
-        print("Mean autocorrelation time: {0:.3f} steps"
-              .format(np.mean(tau)))
-
-        burnin = int(2 * np.max(tau))
-        thin = int(0.5 * np.min(tau))
-        samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
-        log_prob_samples = sampler.get_log_prob(discard=burnin,
-                                                flat=True, thin=thin)
-        log_prior_samples = sampler.get_blobs(discard=burnin,
-                                              flat=True, thin=thin)
-
-        print("tau: {0}".format(tau))
-        print("burn-in: {0}".format(burnin))
-        print("thin: {0}".format(thin))
-        print("flat chain shape: {0}".format(samples.shape))
-        print("flat log prob shape: {0}".format(log_prob_samples.shape))
-        print("flat log prior shape: {0}".format(log_prior_samples.shape))
-
-    return samples
+    return sampler
