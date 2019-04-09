@@ -373,7 +373,7 @@ def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
 
 #    plt.colorbar().set_label('Integrated Flux $(\\mathrm{Hz}\\,'
 #                             '\\mathrm{Jy}/\\mathrm{beam})$')
-    plt.savefig(os.path.join(OUTPATH, 'cnd', '{0}_model_pa.{1}'
+    plt.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_pa.{1}'
                                              .format(prefix, FILETYPE)),
                 bbox_inches='tight')
 
@@ -400,7 +400,7 @@ def plot_moment(cube, moment, prefix, title):
     """
     logging.info("Plotting moment {0} for {1}".format(moment, prefix))
     # only make file if it doesnt already exist
-    filename = os.path.join(OUTPATH, 'cnd', '{0}_moment_{1}.{2}'
+    filename = os.path.join(OUTPATH, STAMP, '{0}_moment_{1}.{2}'
                             .format(prefix, moment, FILETYPE))
 #    with Path(filename) as file:
 #        if file.exists():
@@ -608,7 +608,8 @@ def main(pool, args):
 
         plot_moment(hnc3_2, moment=0, prefix='HNC3_2_rms',
                     title="Integrated emission, HNC 3-2, no rms")
-        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2', title="HNC 3-2, no rms")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_rms',
+                title="HNC 3-2, no rms")
 
         # HCN 3-2
         hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
@@ -620,7 +621,8 @@ def main(pool, args):
 
         plot_moment(hcn3_2, moment=0, prefix='HCN3_2_rms',
                     title="Integrated emission, HCN 3-2, no rms")
-        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2', title="HCN 3-2, no rms")
+        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2_rms',
+                title="HCN 3-2, no rms")
 
         del hcn3_2
         gc.collect()
@@ -635,7 +637,8 @@ def main(pool, args):
 
         plot_moment(hcn4_3, moment=0, prefix='HCN4_3_rms',
                     title="Integrated emission, HCN 4-3, no rms")
-        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3', title="HCN 4-3, no rms")
+        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3_rms',
+                title="HCN 4-3, no rms")
 
         del hcn4_3
         gc.collect()
@@ -650,7 +653,7 @@ def main(pool, args):
 
         plot_moment(hco3_2, moment=0, prefix='HCO+3_2_rms',
                     title="Integrated emission, HCO+ 3-2, no rms")
-        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2',
+        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2_rms',
                 title="HCO\\textsuperscript{+} 3-2, no rms")
 
         del hco3_2
@@ -667,16 +670,16 @@ def main(pool, args):
 
         plot_moment(so56_45, moment=0, prefix='SO56_45_rms',
                     title="Integrated emission, SO 56-45, no rms")
-        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45',
+        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45_rms',
                 title="SO 56-45, no rms")
 
         del so56_45
         gc.collect()
 
         # plot the next 2 moments of HNC 3-2 without rms
-        plot_moment(hnc3_2, moment=1, prefix='HNC3_2_no_rms',
+        plot_moment(hnc3_2, moment=1, prefix='HNC3_2_rms',
                     title="Line of sight velocity map, HNC 3-2")
-        plot_moment(hnc3_2, moment=2, prefix='HNC3_2_no_rms',
+        plot_moment(hnc3_2, moment=2, prefix='HNC3_2_rms',
                     title="Line of sight velocity variance map, HNC 3-2")
 
         del hnc3_2
