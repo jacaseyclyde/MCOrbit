@@ -322,7 +322,7 @@ def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
 
     pos_ang = np.rot90(pos_ang)
 
-    pa_plot = plt.figure(figsize=(12, 4))
+    plt.figure(figsize=(12, 4))
     plt.imshow(pos_ang,
                extent=[0, 360, vlim[0], vlim[1]],
                aspect='auto', cmap='jet', origin='upper')
@@ -373,9 +373,9 @@ def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
 
 #    plt.colorbar().set_label('Integrated Flux $(\\mathrm{Hz}\\,'
 #                             '\\mathrm{Jy}/\\mathrm{beam})$')
-    pa_plot.savefig(os.path.join(OUTPATH, 'cnd', '{0}_model_pa.{1}'
-                                                 .format(prefix, FILETYPE)),
-                    bbox_inches='tight')
+    plt.savefig(os.path.join(OUTPATH, 'cnd', '{0}_model_pa.{1}'
+                                             .format(prefix, FILETYPE)),
+                bbox_inches='tight')
 
     plt.show()
 
@@ -525,41 +525,41 @@ def main(pool, args):
         # load, plot, and garbage collect all tracers
         # HNC 3-2
         hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                   '..', 'dat', 'HNC3_2.fits'),
-                             clean=False)
+                                                   '..', 'dat',
+                                                   'HNC3_2.fits'), clean=False)
         vmin = hnc3_2.spectral_axis.min().value
         vmax = hnc3_2.spectral_axis.max().value
 
         plot_moment(hnc3_2, moment=0, prefix='HNC3_2',
-                    title="Integrated Emission, HNC 3-2")
-        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2')
+                    title="Integrated emission, HNC 3-2")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2', title="HNC 3-2")
 
         # HCN 3-2
         hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                   '..', 'dat', 'HCN3_2.fits'),
-                             clean=False)
+                                                   '..', 'dat',
+                                                   'HCN3_2.fits'), clean=False)
         logging.info("Reprojecting HNC 3-2.")
         hcn3_2 = hcn3_2.spectral_interpolate(hnc3_2.spectral_axis)
         hcn3_2 = hcn3_2.reproject(hnc3_2.header)
 
         plot_moment(hcn3_2, moment=0, prefix='HCN3_2',
-                    title="Integrated Emission, HCN 3-2")
-        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2')
+                    title="Integrated emission, HCN 3-2")
+        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2', title="HCN 3-2")
 
         del hcn3_2
         gc.collect()
 
         # HCN 4-3
         hcn4_3 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                   '..', 'dat', 'HCN4_3.fits'),
-                             clean=False)
+                                                   '..', 'dat',
+                                                   'HCN4_3.fits'), clean=False)
         logging.info("Reprojecting HNC 4-3.")
         hcn4_3 = hcn4_3.spectral_interpolate(hnc3_2.spectral_axis)
         hcn4_3 = hcn4_3.reproject(hnc3_2.header)
 
         plot_moment(hcn4_3, moment=0, prefix='HCN4_3',
-                    title="Integrated Emission, HCN 4-3")
-        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3')
+                    title="Integrated emission, HCN 4-3")
+        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3', title="HCN 4-3")
 
         del hcn4_3
         gc.collect()
@@ -574,8 +574,9 @@ def main(pool, args):
         hco3_2 = hco3_2.reproject(hnc3_2.header)
 
         plot_moment(hco3_2, moment=0, prefix='HCO+3_2',
-                    title="Integrated Emission, HCO+ 3-2")
-        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2')
+                    title="Integrated emission, HCO+ 3-2")
+        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2',
+                title="HCO\\textsuperscript{+} 3-2")
 
         del hco3_2
         gc.collect()
@@ -590,8 +591,8 @@ def main(pool, args):
         so56_45 = so56_45.reproject(hnc3_2.header)
 
         plot_moment(so56_45, moment=0, prefix='SO56_45',
-                    title="Integrated Emission, SO 56-45")
-        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45')
+                    title="Integrated emission, SO 56-45")
+        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45', title="SO 56-45")
 
         del so56_45
         del hnc3_2
@@ -600,41 +601,41 @@ def main(pool, args):
         # repeat, removing rms noise
         # HNC 3-2
         hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                   '..', 'dat', 'HNC3_2.fits'),
-                             clean=True)
+                                                   '..', 'dat',
+                                                   'HNC3_2.fits'), clean=True)
         vmin = hnc3_2.spectral_axis.min().value
         vmax = hnc3_2.spectral_axis.max().value
 
         plot_moment(hnc3_2, moment=0, prefix='HNC3_2_rms',
-                    title="Integrated emission, no rms background, HNC 3-2")
-        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_rms')
+                    title="Integrated emission, HNC 3-2, no rms")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2', title="HNC 3-2, no rms")
 
         # HCN 3-2
         hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                   '..', 'dat', 'HCN3_2.fits'),
-                             clean=True)
+                                                   '..', 'dat',
+                                                   'HCN3_2.fits'), clean=True)
         logging.info("Reprojecting HNC 3-2.")
         hcn3_2 = hcn3_2.spectral_interpolate(hnc3_2.spectral_axis)
         hcn3_2 = hcn3_2.reproject(hnc3_2.header)
 
         plot_moment(hcn3_2, moment=0, prefix='HCN3_2_rms',
-                    title="Integrated Emission, no rms background, HCN 3-2")
-        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2_rms')
+                    title="Integrated emission, HCN 3-2, no rms")
+        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2', title="HCN 3-2, no rms")
 
         del hcn3_2
         gc.collect()
 
         # HCN 4-3
         hcn4_3 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                                   '..', 'dat', 'HCN4_3.fits'),
-                             clean=True)
+                                                   '..', 'dat',
+                                                   'HCN4_3.fits'), clean=True)
         logging.info("Reprojecting HNC 4-3.")
         hcn4_3 = hcn4_3.spectral_interpolate(hnc3_2.spectral_axis)
         hcn4_3 = hcn4_3.reproject(hnc3_2.header)
 
         plot_moment(hcn4_3, moment=0, prefix='HCN4_3_rms',
-                    title="Integrated Emission, no rms background, HCN 4-3")
-        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3_rms')
+                    title="Integrated emission, HCN 4-3, no rms")
+        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3', title="HCN 4-3, no rms")
 
         del hcn4_3
         gc.collect()
@@ -642,15 +643,15 @@ def main(pool, args):
         # HCO+ 3-2
         hco3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
                                                    '..', 'dat',
-                                                   'HCO+3_2.fits'),
-                             clean=True)
+                                                   'HCO+3_2.fits'), clean=True)
         logging.info("Reprojecting HCO+ 3-2.")
         hco3_2 = hco3_2.spectral_interpolate(hnc3_2.spectral_axis)
         hco3_2 = hco3_2.reproject(hnc3_2.header)
 
         plot_moment(hco3_2, moment=0, prefix='HCO+3_2_rms',
-                    title="Integrated Emission, no rms background, HCO+ 3-2")
-        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2_rms')
+                    title="Integrated emission, HCO+ 3-2, no rms")
+        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2',
+                title="HCO\\textsuperscript{+} 3-2, no rms")
 
         del hco3_2
         gc.collect()
@@ -665,17 +666,18 @@ def main(pool, args):
         so56_45 = so56_45.reproject(hnc3_2.header)
 
         plot_moment(so56_45, moment=0, prefix='SO56_45_rms',
-                    title="Integrated Emission, no rms background, SO 56-45")
-        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45_rms')
+                    title="Integrated emission, SO 56-45, no rms")
+        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45',
+                title="SO 56-45, no rms")
 
         del so56_45
         gc.collect()
 
         # plot the next 2 moments of HNC 3-2 without rms
         plot_moment(hnc3_2, moment=1, prefix='HNC3_2_no_rms',
-                    title="Line of Sight Velocity Map, HNC 3-2")
+                    title="Line of sight velocity map, HNC 3-2")
         plot_moment(hnc3_2, moment=2, prefix='HNC3_2_no_rms',
-                    title="Line of Sight Velocity Variance Map, HNC 3-2")
+                    title="Line of sight velocity variance map, HNC 3-2")
 
         del hnc3_2
         gc.collect()
@@ -691,10 +693,15 @@ def main(pool, args):
 
     if args.PLOT:
         # plot masked moments of HNC 3-2 and position angle plot
-        plot_moment(hnc3_2, moment=0, prefix='HNC3_2_masked')
-        plot_moment(hnc3_2, moment=1, prefix='HNC3_2_masked')
-        plot_moment(hnc3_2, moment=2, prefix='HNC3_2_masked')
-        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_masked')
+        plot_moment(hnc3_2, moment=0, prefix='HNC3_2_masked',
+                    title="Integrated emission, HNC 3-2, masked")
+        plot_moment(hnc3_2, moment=1, prefix='HNC3_2_masked',
+                    title="Line of sight velocity map, HNC 3-2, masked")
+        plot_moment(hnc3_2, moment=2, prefix='HNC3_2_masked',
+                    title="Line of sight velocity variance map, "
+                          "HNC 3-2, masked")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_masked',
+                title="HNC 3-2, masked")
 
         # Plot Martin 2012 model
         martin_model = (90., 90., 30., 0., 0.)
@@ -710,9 +717,9 @@ def main(pool, args):
 
     if args.SAMPLE:
         from mcorbit.model import ln_prob
-        print("Preparing data...")
+        logging.info("Preparing data.")
         data = ppv_pts(hnc3_2)
-        print("Data preparation complete")
+        logging.info("Data preparation complete.")
 
         if args.SUB != 1.:
             n_pts = len(data)
@@ -762,17 +769,21 @@ def main(pool, args):
                            p_l], dtype=np.float64)
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
+        logging.info("Sampling probability space.")
         sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                   nwalkers=args.WALKERS, nmax=args.NMAX,
                                   burn=args.BURN, reset=False, mpi=args.MPI,
                                   outpath=os.path.join(OUTPATH, STAMP))
     elif args.PLOT:
+        logging.info("Loading MCMC data")
         pspace = np.loadtxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'))
         sampler = emcee.backends.HDFBackend(os.path.join(OUTPATH,
                                                          STAMP, 'chain.h5'))
+        logging.info("MCMC data loaded")
 
     if args.PLOT:
-        tau = sampler.get_autocorr_time()
+        logging.info("Analyzing MCMC data")
+        tau = sampler.get_autocorr_time(tol=0)
         burnin = int(2 * np.max(tau))
         thin = int(.5 * np.min(tau))
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
@@ -784,20 +795,20 @@ def main(pool, args):
                                                                [16, 50, 84],
                                                                axis=0)))
         pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
+        # print the best parameters found and plot the fit
+        logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
+                     "r_per: {3}, l: {4}".format(*pbest))
 
         corner_plot(samples, pspace, pbest, args)
 
-        # print the best parameters found and plot the fit
-        print("Best Fit")
-        print("aop: {0}, loan: {1}, inc: {2}, "
-              "r_per: {3}, l: {4}".format(*pbest))
         plot_model(hnc3_2, 'HNC3_2_model', params=pbest,
                    label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
                    'i = {2:.2f}, '
                    'r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
         pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_model', params=pbest,
                 label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
-                 'i = {2:.2f}, r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
+                'i = {2:.2f}, r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
+        logging.info("Analysis complete")
 
     # bit of cleanup
     if not os.listdir(OUTPATH):
