@@ -29,43 +29,45 @@ contact PI Elisabeth A.C. Mills.
 """
 # pylint: disable=C0413
 import os
-import sys
-import warnings
+import gc
+
+import logging
+#import warnings
+
 import argparse
-import datetime
 from pathlib import Path
-# import time
 
 # Set up warning filters for things that don't really matter to us
-warnings.filterwarnings('ignore', 'The iteration is not making good progress')
-warnings.filterwarnings('ignore', 'Cube is a Stokes cube, ')
-warnings.filterwarnings("ignore", message="numpy.dtype size changed")
-warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
-warnings.filterwarnings("ignore", message="The mpl_toolkits.axes_grid module "
-                        "was deprecated in version 2.1")
-warnings.filterwarnings("ignore", category=FutureWarning)
+#warnings.filterwarnings('ignore', 'The iteration is not making good progress')
+#warnings.filterwarnings('ignore', 'Cube is a Stokes cube, ')
+#warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+#warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+#warnings.filterwarnings("ignore", message="The mpl_toolkits.axes_grid module "
+#                        "was deprecated in version 2.1")
+#warnings.filterwarnings("ignore", category=FutureWarning)
 
-import schwimmbad  # noqa
+import schwimmbad
 import emcee
 
-import numpy as np  # noqa
+import numpy as np
 
-from scipy.optimize import brentq  # noqa
+from scipy.optimize import brentq
 
 import astropy.units as u  # noqa
-from astropy.coordinates import SkyCoord, FK5, ICRS, Angle  # noqa
+from astropy.coordinates import SkyCoord, FK5, ICRS, Angle
 
-from spectral_cube import SpectralCube, LazyMask  # noqa
+from spectral_cube import SpectralCube, LazyMask
 
-import matplotlib as mpl  # noqa
+import matplotlib as mpl
 mpl.use('Agg')
-import matplotlib.pyplot as plt  # noqa
-import corner  # noqa
-import aplpy  # noqa
 
-from mcorbit import orbits  # noqa
-from mcorbit.model import ln_prob  # noqa
-from mcorbit import mcmc  # noqa
+import matplotlib.pyplot as plt
+import corner
+import aplpy
+
+from mcorbit import orbits
+from mcorbit import mcmc
+
 
 np.set_printoptions(precision=5, threshold=np.inf)
 
@@ -80,12 +82,12 @@ GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
 D_SGR_A = 8.127 * u.kpc
 
 
+# %%
 # =============================================================================
 # =============================================================================
 # # Function definitions
 # =============================================================================
 # =============================================================================
-
 def _notnan(num):
     """
     Inverse of :func:`numpy.isnan`
@@ -93,10 +95,10 @@ def _notnan(num):
     return ~np.isnan(num)
 
 
+# %%
 # =============================================================================
 # Data fandling functions
 # =============================================================================
-
 def import_data(cubefile, maskfile=None, clean=True):
     """Pipeline function that processes spectral data.
 
@@ -120,13 +122,14 @@ def import_data(cubefile, maskfile=None, clean=True):
 
     """
     # pylint: disable=E1101
+    logging.info("Loading {0}".format(cubefile))
     cube = SpectralCube.read(cubefile)
 
-    # create mask to remove the NaN buffer around the image file later
-    buffer_mask = LazyMask(_notnan, cube=cube)
+    buffer_mask = LazyMask(lambda x: ~np.isnan(x), cube=cube)
 
-    # few times rms for thresholding
-    rms = 4. * np.sqrt(np.nanmean(np.square(cube.hdu.data)))
+    if maskfile is not None or clean:
+        # few times rms for thresholding
+        rms = 4. * np.sqrt(np.nanmean(np.square(cube.hdu.data)))
 
     # mask out contents of maskfile as well as low intensity noise
     if maskfile is not None:
@@ -142,6 +145,7 @@ def import_data(cubefile, maskfile=None, clean=True):
     return cube.with_spectral_unit(u.km / u.s, velocity_convention='radio')
 
 
+# %%
 def ppv_pts(cube):
     """Converts spectral cube data to ppv datapoints.
 
@@ -186,128 +190,11 @@ def ppv_pts(cube):
     return data_pts
 
 
+# %%
 # =============================================================================
 # Plot functions
 # =============================================================================
-def _ra_labeler(dec, pos):
-    """
-    Generates the right ascension labels for plots.
-
-    """
-    # pylint: disable=E1101, W1401
-    # pylint: disable=anomalous-backslash-in-string
-    ang = Angle(dec, unit=u.deg)
-    hour = int(ang.hms.h)
-    minute = abs(int(ang.hms.m))
-    sec = abs(round(ang.hms.s, 2))
-
-    if pos == 0:
-        return "${0}h\,{1}m\,{2}s$".format(hour, minute, sec)
-
-    return "${0}s$".format(sec)
-
-
-def _dec_labeler(dec, pos):
-    """
-    Generates the declination labels for plots.
-    """
-    # pylint: disable=E1101, W1401
-    ang = Angle(dec, unit=u.deg)
-    deg = int(ang.dms.d)
-    minute = abs(int(ang.dms.m))
-    sec = abs(round(ang.dms.s, 2))
-
-    if pos == 0 or (minute == 0. and sec == 0.):
-        return "${0}\degree\,{1}'\,{2}''$".format(deg, minute, sec)
-    elif sec == 0.:
-        return "${0}'\,{1}''$".format(minute, sec)
-
-    return "${0}''$".format(sec)
-
-
-def _model_plot(img, mdl, bounds, params, flags):
-    """
-    This is where the bulk of the plotting for the models actually occurs
-    """
-    # pylint: disable=E1101, W1401, C0103
-    # start the basics of the plot
-    fig = plt.figure(figsize=FIGSIZE)
-    plt.imshow(img, origin='lower', cmap='jet',
-               figure=fig, aspect='auto', extent=bounds)
-
-    # Add the model
-    plt.plot(mdl[0], mdl[1], 'k--',
-             label='Gas core '
-             '($\omega = {0:.2f}, \Omega = {1:.2f}, i = {2:.2f}$)'
-             .format(params[0], params[1], params[2]))
-    plt.plot(mdl[0][0], mdl[1][0], 'r*', label='Model Start')
-
-    # all graphs need a color bar, but the label differs so we add it later
-    cbar = plt.colorbar()
-
-    axes = plt.gca()
-
-    if flags[0] == 'ra' and flags[1] == 'dec':
-        # add Sgr A*
-        gc = ICRS(ra=Angle('17h45m40.0409s'),
-                  dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
-        sgr_ra = gc.ra.to(u.deg).value
-        sgr_dec = gc.dec.to(u.deg).value
-        plt.plot(sgr_ra, sgr_dec, label='Sgr A*',
-                 c='black', marker='o', ms=5, linestyle='None')
-
-        # add scale bar
-        scale = (((.5 * u.pc) / D_SGR_A) * u.rad).to(u.deg).value
-        plt.plot((266.40 + scale, 266.40), (-29.024, -29.024), 'k-')
-        plt.text(266.40 + 0.5 * scale, -29.024, '0.5 pc',
-                 horizontalalignment='center', verticalalignment='bottom')
-
-        cbar.set_label('Integrated Flux $(\mathrm{Hz}\,'
-                       '\mathrm{Jy}/\mathrm{beam})$')
-    else:
-        cbar.set_label('Integrated Flux $(\degree\,'
-                       '\mathrm{Jy}/\mathrm{beam})$')
-
-    # Set the labels for the x and y axes based on the flags passed
-    # Note (JACC): I'm sure this can be done in a much better way, w/o flags
-    # XXX: Refactor this
-    if flags[0] == 'ra':
-        plt.xlabel('RA (J2000)')
-
-        ra_locations = [(Angle('17h45m36.00s')
-                         + i * Angle('0h0m2.00s')).to(u.deg).value
-                        for i in range(4)]
-        axes.xaxis.set_major_locator(mpl.ticker.FixedLocator(ra_locations))
-
-        axes.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(_ra_labeler))
-    else:
-        plt.xlabel('Dec (J2000)')
-
-        dec_locations = [(Angle('-28:59:40.0 degrees')
-                          - i * Angle('0:0:20.0 degrees')).value
-                         for i in range(6)]
-        axes.xaxis.set_major_locator(mpl.ticker.FixedLocator(dec_locations))
-
-        axes.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(_dec_labeler))
-
-    if flags[1] == 'dec':
-        plt.ylabel('Dec (J2000)')
-
-        dec_locations = [(Angle('-28:59:40.0 degrees')
-                          - i * Angle('0:0:20.0 degrees')).value
-                         for i in range(6)]
-        axes.yaxis.set_major_locator(mpl.ticker.FixedLocator(dec_locations))
-
-        axes.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(_dec_labeler))
-    else:
-        plt.ylabel('$v_{r}\,(\mathrm{km} / \mathrm{s})$')
-
-    plt.legend()
-
-    return fig
-
-
-def plot_model(cube, prefix, params=None, r=None):
+def plot_model(cube, prefix, params=None, r=None, label=None):
     """Plots the model in 3 graphs depicting each plane of the ppv space
 
     Plots an orbit model (as defined by `params`) over the data, showing all 3
@@ -326,8 +213,6 @@ def plot_model(cube, prefix, params=None, r=None):
 
     """
     # pylint: disable=E1101, C0103
-    vmin = cube.spectral_axis.min().value
-    vmax = cube.spectral_axis.max().value
     ra_min, ra_max = cube.longitude_extrema.value
     dec_min, dec_max = cube.latitude_extrema.value
 
@@ -353,12 +238,6 @@ def plot_model(cube, prefix, params=None, r=None):
     vel = c.radial_velocity.value
 
     m0 = ra_dec.moment0(axis=0)
-    print(ra_dec.shape)
-    print(m0.shape)
-
-    # plot dec vs ra
-#    f = _model_plot(ra_dec.moment0(axis=0).array, [ra, dec],
-#                    [ra_max, ra_min, dec_min, dec_max], params, ['ra', 'dec'])
 
     # plot data
     f = aplpy.FITSFigure(m0.hdu, figsize=FIGSIZE)
@@ -375,8 +254,7 @@ def plot_model(cube, prefix, params=None, r=None):
 
     f.show_lines([np.array([ra.tolist(), dec.tolist()])], layer='model',
                  color='black', linestyle='dashed',
-                 label='Best Fit ($\omega = {0:.2f}, \Omega = {1:.2f}, '
-                 'i = {2:.2f}$)'.format(aop, loan, inc))
+                 label=label)
 
     plt.legend()
 
@@ -389,23 +267,43 @@ def plot_model(cube, prefix, params=None, r=None):
 
     f.show_colorscale()
     f.add_colorbar()
-#    f.colorbar.set_axis_label_text(z_unit)
-
-    # get pixel coords of Sgr A* before plotting
-    sgrastar_x, sgrastar_y = f.world2pixel(gcra, gcdec)
+    f.colorbar.set_axis_label_text('Integrated Flux $(\\mathrm{Hz}\\,'
+                                   '\\mathrm{Jy}/\\mathrm{beam})$')
 
     f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model.{1}'
                            .format(prefix, FILETYPE)))
+    return
+
+
+# %%
+def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
+            label=None):
+    logging.info("Plotting velocity vs position angle for {0}".format(prefix))
+    cube = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
+    m0 = cube.moment0()
 
     # position angle plot
-    xx, yy = np.meshgrid(np.arange(0, m0.shape[0]), np.arange(0, m0.shape[1]))
+    xx, yy = np.meshgrid(np.arange(0, m0.shape[1]), np.arange(0, m0.shape[0]),
+                         indexing='xy')
+
+    gc = ICRS(ra=Angle('17h45m40.0409s'),
+              dec=Angle('-29:0:28.118 degrees')).transform_to(FK5)
+    gcra = gc.ra.value
+    gcdec = gc.dec.value
+
+    # convenient functions for finding the location of Sgr A*
+    f = aplpy.FITSFigure(m0.hdu, figsize=FIGSIZE)
+    f.set_xaxis_coord_type('longitude')
+    f.set_yaxis_coord_type('latitude')
+
+    # get pixel coords of Sgr A* before plotting
+    sgrastar_x, sgrastar_y = f.world2pixel(gcra, gcdec)
 
     zero_x = xx - sgrastar_x  # center the pixel indices on the black hole
     zero_y = yy - sgrastar_y
 
     theta = np.arctan2(zero_y, zero_x)  # define a new coordinate theta
     theta = (theta + np.pi) * 180.0 / np.pi
-    r = np.sqrt(zero_x ** 2 + zero_y ** 2)  # define a new coordinate r
 
     whereplus = np.where(theta < 270)
     whereminus = np.where(theta >= 270)
@@ -415,25 +313,75 @@ def plot_model(cube, prefix, params=None, r=None):
     theta[whereminus] = theta[whereminus] - 270
 
     # set up position angle
-    pos_ang = np.zeros((360, ra_dec.shape[0]))
+    pos_ang = np.zeros((360, cube.shape[0]))
     for i in np.arange(360):
         wheretheta = np.where((theta > i) * (theta < i+1))
         wherex = xx[wheretheta]
         wherey = yy[wheretheta]
-        print(np.shape(wheretheta))
-        print(np.shape(theta))
-        pos_ang[i, :] = m0.array[wherey, wherex]
+        pos_ang[i, :] = np.nansum(cube.hdu.data[:, wherey, wherex], axis=1)
 
     pos_ang = np.rot90(pos_ang)
 
-    plt.figure(figsize=(12, 7))
-    plt.imshow(pos_ang, extent=[0, 360, vmin, vmax])
-    plt.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_pa.{1}'
-                             .format(prefix, FILETYPE)),
-                bbox_inches='tight')
+    pa_plot = plt.figure(figsize=(12, 4))
+    plt.imshow(pos_ang,
+               extent=[0, 360, vlim[0], vlim[1]],
+               aspect='auto', cmap='jet', origin='upper')
+
+    if params is not None:
+        if r is not None:
+            aop, loan, inc, _, __ = params
+            ones = np.ones(360)
+            orbit = (ones * r * u.pc,
+                     ones * 0. * u.pc / u.yr,
+                     np.linspace(0., 2. * np.pi, 360) * u.rad,
+                     np.sqrt((orbits.mass(r) / (r ** 3))) * u.rad / u.yr)
+            pos, vel = orbits.polar_to_cartesian(*orbit)
+
+            pos, vel = orbits.orbit_rotator(pos, vel, aop, loan, inc)
+            vel *= -1
+            c = orbits.sky_coords(pos, vel)
+        else:
+            c = orbits.model(params, coords=True)
+
+        ra = c.ra.to(u.deg).value
+        dec = c.dec.to(u.deg).value
+        vel = c.radial_velocity.value
+
+        x, y = f.world2pixel(ra, dec)
+
+        zero_x = x - sgrastar_x
+        zero_y = y - sgrastar_y
+
+        theta = np.arctan2(zero_y, zero_x)
+        theta = (theta + np.pi) * 180. / np.pi
+
+        whereplus = np.where(theta < 270)
+        whereminus = np.where(theta >= 270)
+
+        # Tweak theta to match the astronomical norm (defined as east of north)
+        theta[whereplus] = theta[whereplus] + 90
+        theta[whereminus] = theta[whereminus] - 270
+
+        theta, vel = np.transpose(sorted(zip(theta, vel)))
+
+        plt.plot(theta, vel, label=label, color='white', ls='--', lw=1)
+        plt.legend()
+
+    plt.xlabel('Position Angle East of North [Degrees]')
+    plt.ylabel('$v_{r}$ [km/s]')
+    plt.title(title)
+
+#    plt.colorbar().set_label('Integrated Flux $(\\mathrm{Hz}\\,'
+#                             '\\mathrm{Jy}/\\mathrm{beam})$')
+    pa_plot.savefig(os.path.join(OUTPATH, 'cnd', '{0}_model_pa.{1}'
+                                                 .format(prefix, FILETYPE)),
+                    bbox_inches='tight')
+
+    plt.show()
 
 
-def plot_moment(cube, moment, prefix):
+# %%
+def plot_moment(cube, moment, prefix, title):
     """Saves an image of the given `moment` for a spectral cube
 
     Create a plot of the given `moment` for a spectral cube. Plots are then
@@ -450,32 +398,29 @@ def plot_moment(cube, moment, prefix):
         Prefix to use for filename
 
     """
+    logging.info("Plotting moment {0} for {1}".format(moment, prefix))
     # only make file if it doesnt already exist
     filename = os.path.join(OUTPATH, 'cnd', '{0}_moment_{1}.{2}'
                             .format(prefix, moment, FILETYPE))
-    with Path(filename) as file:
-        if file.exists():
-            return
+#    with Path(filename) as file:
+#        if file.exists():
+#            return
 
-    # TODO: Refactor function to plot all 3 moments in a single call
-    # pylint: disable=E1101, W1401, C0103
-    m = cube.moment(order=moment).hdu
-
-    # XXX: Throw an error instead of printing
-    z_unit = ''
+    z_lbl = ''
     if moment == 0:
-        z_unit = "Integrated Flux $(\\mathrm{Hz}\\,\\mathrm{Jy}/\\mathrm{beam})$"
+        z_lbl = "Integrated Flux $(\\mathrm{Hz}\\," \
+                "\\mathrm{Jy}/\\mathrm{beam})$"
         cube = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
     elif moment == 1:
-        z_unit = "$v_{r} (\\mathrm{km}/\\mathrm{s})$"
+        z_lbl = "$v_{r} (\\mathrm{km}/\\mathrm{s})$"
     elif moment == 2:
-        z_unit = "$\\sigma_{v_{r}}^{2} (\\mathrm{km}^{2}/\\mathrm{s}^{2})$"
+        z_lbl = "$\\sigma_{v_{r}}^{2} (\\mathrm{km}^{2}/\\mathrm{s}^{2})$"
     else:
         print("Please choose from moment 0, 1, or 2")
         return
 
     # plot data
-    f = aplpy.FITSFigure(m, figsize=FIGSIZE)
+    f = aplpy.FITSFigure(cube.moment(order=moment).hdu, figsize=FIGSIZE)
     f.set_xaxis_coord_type('longitude')
     f.set_yaxis_coord_type('latitude')
 
@@ -498,12 +443,15 @@ def plot_moment(cube, moment, prefix):
 
     f.show_colorscale()
     f.add_colorbar()
-    f.colorbar.set_axis_label_text(z_unit)
+    f.colorbar.set_axis_label_text(z_lbl)
+
+    f.set_title(title)
 
     f.save(filename)
     return
 
 
+# %%
 def corner_plot(samples, prange, fit, args):
     """Wrapper function for creating and saving graphs of the parameter space.
 
@@ -523,19 +471,19 @@ def corner_plot(samples, prange, fit, args):
         Name of the file to save the plot to.
 
     """
-    # TODO: update the docstring entry for walkers with their structure
-    # TODO: Fix labels
     fig = corner.corner(samples,
-                        labels=["$\omega$", "$\Omega$", "$i$", "$r_p$", "$l$"])
-#                        quantiles=[.16, .84], truths=fit)
+                        labels=["$\\omega$", "$\\Omega$",
+                                "$i$", "$r_p$", "$l$"],
+                        quantiles=[.16, .84], truths=fit)
 
     fig.set_size_inches(12, 12)
 
-    plt.savefig(os.path.join(OUTPATH, STAMP, 'corner_w{0}_it{1}.pdf'
+    plt.savefig(os.path.join(OUTPATH, 'cnd', 'corner.pdf'
                              .format(args.WALKERS, args.NMAX)),
                 bbox_inches='tight')
 
 
+# %%
 def plot_acor(acor):
     n = 100 * np.arange(1, len(acor) + 1)
 
@@ -546,13 +494,13 @@ def plot_acor(acor):
     plt.ylim(0, acor.max() + 0.1*(acor.max() - acor.min()))
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
-    plt.savefig(os.path.join(OUTPATH, STAMP, 'acor.pdf'))
+    plt.savefig(os.path.join(OUTPATH, 'cnd', 'acor.pdf'))
 
 
+# %%
 # =============================================================================
 # Main program
 # =============================================================================
-
 def main(pool, args):
     """The main function of MC Orbit. Used to start all sampling
 
@@ -566,189 +514,290 @@ def main(pool, args):
 
     # create output folder
     try:
-        os.makedirs(os.path.join(OUTPATH, STAMP))
+        os.makedirs(os.path.join(OUTPATH, 'cnd'))
     except FileExistsError:
         pass
 
-    print("Loading Data...")
-    # load plot data
-    hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-                                               '..', 'dat', 'HNC3_2.fits'),
-                         clean=False)
-#    hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                    '..', 'dat',
-#                                                    'HCN3_2.fits'), clean=False)
-#    hcn4_3 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                    '..', 'dat',
-#                                                    'HCN4_3.fits'), clean=False)
-#    hco3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                    '..', 'dat',
-#                                                    'HCO+3_2.fits'), clean=False)
-#    so56_45 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                    '..', 'dat',
-#                                                    'SO56_45.fits'), clean=False)
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                        level=logging.INFO)
 
-#    hcn3_2 = hcn3_2.reproject(hnc3_2.header)
-#    hcn4_3 = hcn4_3.reproject(hnc3_2.header)
-#    hco3_2 = hco3_2.reproject(hnc3_2.header)
-#    so56_45 = so56_45.reproject(hnc3_2.header)
+    if args.PLOT:
+        # load, plot, and garbage collect all tracers
+        # HNC 3-2
+        hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HNC3_2.fits'),
+                             clean=False)
+        vmin = hnc3_2.spectral_axis.min().value
+        vmax = hnc3_2.spectral_axis.max().value
 
-    # plot lines
-#    plot_moment(hnc3_2, moment=0, prefix='HNC3_2_raw')
-#    plot_moment(hcn3_2, moment=0, prefix='HCN3_2_raw')
-#    plot_moment(hcn4_3, moment=0, prefix='HCN4_3_raw')
-#    plot_moment(hco3_2, moment=0, prefix='HCO+3_2_raw')
-#    plot_moment(so56_45, moment=0, prefix='SO56_45_raw')
+        plot_moment(hnc3_2, moment=0, prefix='HNC3_2',
+                    title="Integrated Emission, HNC 3-2")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2')
 
-    # load data without rms background
-#    hnc3_2_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                     '..', 'dat',
-#                                                     'HNC3_2.fits'))
-#    hcn3_2_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                     '..', 'dat',
-#                                                     'HCN3_2.fits'))
-#    hcn4_3_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                     '..', 'dat',
-#                                                     'HCN4_3.fits'))
-#    hco3_2_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                     '..', 'dat',
-#                                                     'HCO+3_2.fits'))
-#    so56_45_clean = import_data(cubefile=os.path.join(os.path.dirname(__file__),
-#                                                      '..', 'dat',
-#                                                      'SO56_45.fits'))
+        # HCN 3-2
+        hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HCN3_2.fits'),
+                             clean=False)
+        logging.info("Reprojecting HNC 3-2.")
+        hcn3_2 = hcn3_2.spectral_interpolate(hnc3_2.spectral_axis)
+        hcn3_2 = hcn3_2.reproject(hnc3_2.header)
 
-#    hcn3_2_clean = hcn3_2_clean.reproject(hnc3_2_clean.header)
-#    hcn4_3_clean = hcn4_3_clean.reproject(hnc3_2_clean.header)
-#    hco3_2_clean = hco3_2_clean.reproject(hnc3_2_clean.header)
-#    so56_45_clean = so56_45_clean.reproject(hnc3_2_clean.header)
+        plot_moment(hcn3_2, moment=0, prefix='HCN3_2',
+                    title="Integrated Emission, HCN 3-2")
+        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2')
 
-    # plot the first 3 moments of each cube
-#    plot_moment(hnc3_2_clean, moment=0, prefix='HNC3_2')
-#    plot_moment(hnc3_2_clean, moment=1, prefix='HNC3_2')
-#    plot_moment(hnc3_2_clean, moment=2, prefix='HNC3_2')
-#
-#    plot_moment(hcn3_2_clean, moment=0, prefix='HCN3_2')
-#    plot_moment(hcn3_2_clean, moment=1, prefix='HCN3_2')
-#    plot_moment(hcn3_2_clean, moment=2, prefix='HCN3_2')
-#
-#    plot_moment(hcn4_3_clean, moment=0, prefix='HCN4_3')
-#    plot_moment(hcn4_3_clean, moment=1, prefix='HCN4_3')
-#    plot_moment(hcn4_3_clean, moment=2, prefix='HCN4_3')
-#
-#    plot_moment(hco3_2_clean, moment=0, prefix='HCO+3_2')
-#    plot_moment(hco3_2_clean, moment=1, prefix='HCO+3_2')
-#    plot_moment(hco3_2_clean, moment=2, prefix='HCO+3_2')
-#
-#    plot_moment(so56_45_clean, moment=0, prefix='SO56_45')
-#    plot_moment(so56_45_clean, moment=1, prefix='SO56_45')
-#    plot_moment(so56_45_clean, moment=2, prefix='SO56_45')
+        del hcn3_2
+        gc.collect()
 
-    # mask the data
-    masked_hnc3_2_cube = import_data(cubefile=os.path.join(
-                                     os.path.dirname(__file__),
-                                     '..', 'dat', 'HNC3_2.fits'),
-                                     maskfile=os.path.join(
-                                             os.path.dirname(__file__),
-                                             '..', 'dat', 'HNC3_2.mask.fits'))
+        # HCN 4-3
+        hcn4_3 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HCN4_3.fits'),
+                             clean=False)
+        logging.info("Reprojecting HNC 4-3.")
+        hcn4_3 = hcn4_3.spectral_interpolate(hnc3_2.spectral_axis)
+        hcn4_3 = hcn4_3.reproject(hnc3_2.header)
 
-    # plot the first 3 moments of the masked cubes
-#    plot_moment(masked_hnc3_2_cube, moment=0, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=1, prefix='HNC3_2_masked')
-#    plot_moment(masked_hnc3_2_cube, moment=2, prefix='HNC3_2_masked')
-#
-#    plot_model(masked_hnc3_2_cube, 'HNC3_2_Martin',
-#               (90., 90., 30., 0., 0.), r=1.6)
+        plot_moment(hcn4_3, moment=0, prefix='HCN4_3',
+                    title="Integrated Emission, HCN 4-3")
+        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3')
 
-    print("Plotting complete!")
+        del hcn4_3
+        gc.collect()
 
-    print("Preparing data...")
-    data = ppv_pts(masked_hnc3_2_cube)
+        # HCO+ 3-2
+        hco3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat',
+                                                   'HCO+3_2.fits'),
+                             clean=False)
+        logging.info("Reprojecting HCO+ 3-2.")
+        hco3_2 = hco3_2.spectral_interpolate(hnc3_2.spectral_axis)
+        hco3_2 = hco3_2.reproject(hnc3_2.header)
 
-    if args.SUB != 1.:
-        n_pts = len(data)
-        ind = np.random.choice(range(n_pts), size=int(args.SUB * n_pts),
-                               replace=False)
-        data = data[ind]
+        plot_moment(hco3_2, moment=0, prefix='HCO+3_2',
+                    title="Integrated Emission, HCO+ 3-2")
+        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2')
 
-    # find the lower bounds on the peri and apoapses using apparent sep
-    m1 = masked_hnc3_2_cube.moment1()
-    dd, rr = m1.spatial_coordinate_map
-    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
-    c = c.ravel()
+        del hco3_2
+        gc.collect()
 
-    offset = np.array([((c.ra - GAL_CENTER.ra).rad * D_SGR_A).to(u.pc),
-                       ((c.dec - GAL_CENTER.dec).rad * D_SGR_A).to(u.pc),
-                       c.radial_velocity.to(u.pc / u.yr).value]).T
+        # SO 56-45
+        so56_45 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                    '..', 'dat',
+                                                    'SO56_45.fits'),
+                              clean=False)
+        logging.info("Reprojecting SO 56-45.")
+        so56_45 = so56_45.spectral_interpolate(hnc3_2.spectral_axis)
+        so56_45 = so56_45.reproject(hnc3_2.header)
 
-    offset = offset[_notnan(offset[:, 2])]
+        plot_moment(so56_45, moment=0, prefix='SO56_45',
+                    title="Integrated Emission, SO 56-45")
+        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45')
 
-    # use lower bounds on peri/apoapsis to set lower bound on angular
-    # momentum
-    r_p_lb = np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
-    r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
-    lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
-                                            - orbits.potential(r_p_lb)))
-            / ((r_a_lb ** 2) - (r_p_lb ** 2))))
+        del so56_45
+        del hnc3_2
+        gc.collect()
 
-    # our upper bound on the radius is determined by the position of
-    # the furthest local maximum
-    r_a_ub = brentq(orbits.V_eff_grad, 6., 9., args=(lmin))
-    r_p_ub = 6.  # r_a_lb
-    lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
-                                            - orbits.potential(r_p_ub)))
-            / ((r_a_ub ** 2) - (r_p_ub ** 2))))
+        # repeat, removing rms noise
+        # HNC 3-2
+        hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HNC3_2.fits'),
+                             clean=True)
+        vmin = hnc3_2.spectral_axis.min().value
+        vmax = hnc3_2.spectral_axis.max().value
 
-    # set up priors and do MCMC. angular momentum bounds are based on
-    # the maximum radius
-    p_aop = [-90., 90.]  # argument of periapsis
-    p_loan = [90., 270.]  # longitude of ascending node
-    p_inc = [90., 270.]  # inclination
-    p_rp = [r_p_lb, r_p_ub]  # starting radial distance
-    p_l = [lmin, lmax]  # ang. mom.
-    pspace = np.array([p_aop,
-                       p_loan,
-                       p_inc,
-                       p_rp,
-                       p_l], dtype=np.float64)
-    np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
+        plot_moment(hnc3_2, moment=0, prefix='HNC3_2_rms',
+                    title="Integrated emission, no rms background, HNC 3-2")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_rms')
 
-#    samples = mcmc.fit_orbits(pool, ln_prob, data, pspace,
-#                              nwalkers=args.WALKERS, nmax=args.NMAX,
-#                              burn=args.BURN, reset=False, mpi=args.MPI,
-#                              outpath=os.path.join(OUTPATH, STAMP))
+        # HCN 3-2
+        hcn3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HCN3_2.fits'),
+                             clean=True)
+        logging.info("Reprojecting HNC 3-2.")
+        hcn3_2 = hcn3_2.spectral_interpolate(hnc3_2.spectral_axis)
+        hcn3_2 = hcn3_2.reproject(hnc3_2.header)
 
-    reader = emcee.backends.HDFBackend('../out/20190322/chain.h5')
+        plot_moment(hcn3_2, moment=0, prefix='HCN3_2_rms',
+                    title="Integrated Emission, no rms background, HCN 3-2")
+        pa_plot(hcn3_2, [vmin, vmax], prefix='HCN3_2_rms')
 
-    tau = reader.get_autocorr_time()
-    burnin = int(2*np.max(tau))
-    thin = int(.5*np.min(tau))
-    samples = reader.get_chain(discard=1000, flat=True, thin=200)
-    print(samples.shape)
-    print(reader.get_chain(flat=True).shape)
+        del hcn3_2
+        gc.collect()
 
-    # analyze the walker data
-    aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                        zip(*np.percentile(samples,
-                                                           [16, 50, 84],
-                                                           axis=0)))
-    pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
+        # HCN 4-3
+        hcn4_3 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HCN4_3.fits'),
+                             clean=True)
+        logging.info("Reprojecting HNC 4-3.")
+        hcn4_3 = hcn4_3.spectral_interpolate(hnc3_2.spectral_axis)
+        hcn4_3 = hcn4_3.reproject(hnc3_2.header)
 
-    corner_plot(samples, pspace, pbest, args)
-    return
+        plot_moment(hcn4_3, moment=0, prefix='HCN4_3_rms',
+                    title="Integrated Emission, no rms background, HCN 4-3")
+        pa_plot(hcn4_3, [vmin, vmax], prefix='HCN4_3_rms')
 
-    # print the best parameters found and plot the fit
-    print(r_a_lb)
-    print("Best Fit")
-    print("aop: {0}, loan: {1}, inc: {2}, "
-          "r_per: {3}, l: {4}".format(*pbest))
-    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked', pbest)
+        del hcn4_3
+        gc.collect()
 
-    theta = (aop[0] - .5 * aop[2],
-             loan[0] - .5 * loan[2],
-             inc[0] - .5 * inc[2],
-             r_per[0] - 0.75 * r_per[2],
-             l_cons[0] - l_cons[2])
-    plot_model(masked_hnc3_2_cube, 'HNC3_2_masked_test', theta)
+        # HCO+ 3-2
+        hco3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat',
+                                                   'HCO+3_2.fits'),
+                             clean=True)
+        logging.info("Reprojecting HCO+ 3-2.")
+        hco3_2 = hco3_2.spectral_interpolate(hnc3_2.spectral_axis)
+        hco3_2 = hco3_2.reproject(hnc3_2.header)
+
+        plot_moment(hco3_2, moment=0, prefix='HCO+3_2_rms',
+                    title="Integrated Emission, no rms background, HCO+ 3-2")
+        pa_plot(hco3_2, [vmin, vmax], prefix='HCO+3_2_rms')
+
+        del hco3_2
+        gc.collect()
+
+        # SO 56-45
+        so56_45 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                    '..', 'dat',
+                                                    'SO56_45.fits'),
+                              clean=True)
+        logging.info("Reprojecting SO 56-45.")
+        so56_45 = so56_45.spectral_interpolate(hnc3_2.spectral_axis)
+        so56_45 = so56_45.reproject(hnc3_2.header)
+
+        plot_moment(so56_45, moment=0, prefix='SO56_45_rms',
+                    title="Integrated Emission, no rms background, SO 56-45")
+        pa_plot(so56_45, [vmin, vmax], prefix='SO56_45_rms')
+
+        del so56_45
+        gc.collect()
+
+        # plot the next 2 moments of HNC 3-2 without rms
+        plot_moment(hnc3_2, moment=1, prefix='HNC3_2_no_rms',
+                    title="Line of Sight Velocity Map, HNC 3-2")
+        plot_moment(hnc3_2, moment=2, prefix='HNC3_2_no_rms',
+                    title="Line of Sight Velocity Variance Map, HNC 3-2")
+
+        del hnc3_2
+        gc.collect()
+
+    if args.PLOT or args.SAMPLE:
+        logging.info("Applying mask.")
+        hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat', 'HNC3_2.fits'),
+                             maskfile=os.path.join(os.path.dirname(__file__),
+                                                   '..', 'dat',
+                                                   'HNC3_2.mask.fits'))
+        logging.info("Mask complete.")
+
+    if args.PLOT:
+        # plot masked moments of HNC 3-2 and position angle plot
+        plot_moment(hnc3_2, moment=0, prefix='HNC3_2_masked')
+        plot_moment(hnc3_2, moment=1, prefix='HNC3_2_masked')
+        plot_moment(hnc3_2, moment=2, prefix='HNC3_2_masked')
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_masked')
+
+        # Plot Martin 2012 model
+        martin_model = (90., 90., 30., 0., 0.)
+        r_martin = 1.6
+        plot_model(hnc3_2, 'HNC3_2_Martin', params=martin_model, r=r_martin,
+                   label="Martin et al. 2012")
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_Martin',
+                params=martin_model, r=r_martin,
+                label="Martin et al. 2012")
+
+#    plot_moment(hnc3_2_masked, moment=1, prefix='HNC3_2_masked')
+#    plot_moment(hnc3_2_masked, moment=2, prefix='HNC3_2_masked')
+
+    if args.SAMPLE:
+        from mcorbit.model import ln_prob
+        print("Preparing data...")
+        data = ppv_pts(hnc3_2)
+        print("Data preparation complete")
+
+        if args.SUB != 1.:
+            n_pts = len(data)
+            ind = np.random.choice(range(n_pts), size=int(args.SUB * n_pts),
+                                   replace=False)
+            data = data[ind]
+
+        # find the lower bounds on the peri and apoapses using apparent sep
+        m1 = hnc3_2.moment1()
+        dd, rr = m1.spatial_coordinate_map
+        c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
+        c = c.ravel()
+
+        offset = np.array([((c.ra - GAL_CENTER.ra).rad * D_SGR_A).to(u.pc),
+                           ((c.dec - GAL_CENTER.dec).rad * D_SGR_A).to(u.pc),
+                           c.radial_velocity.to(u.pc / u.yr).value]).T
+
+        offset = offset[_notnan(offset[:, 2])]
+
+        # use lower bounds on peri/apoapsis to set lower bound on angular
+        # momentum
+        r_p_lb = np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+        r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+        lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
+                                                - orbits.potential(r_p_lb)))
+                / ((r_a_lb ** 2) - (r_p_lb ** 2))))
+
+        # our upper bound on the radius is determined by the position of
+        # the furthest local maximum
+        r_a_ub = brentq(orbits.V_eff_grad, 6., 9., args=(lmin))
+        r_p_ub = 6.  # r_a_lb
+        lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
+                                                - orbits.potential(r_p_ub)))
+                / ((r_a_ub ** 2) - (r_p_ub ** 2))))
+
+        # set up priors and do MCMC. angular momentum bounds are based on
+        # the maximum radius
+        p_aop = [-90., 90.]  # argument of periapsis
+        p_loan = [90., 270.]  # longitude of ascending node
+        p_inc = [90., 270.]  # inclination
+        p_rp = [r_p_lb, r_p_ub]  # starting radial distance
+        p_l = [lmin, lmax]  # ang. mom.
+        pspace = np.array([p_aop,
+                           p_loan,
+                           p_inc,
+                           p_rp,
+                           p_l], dtype=np.float64)
+        np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
+
+        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace,
+                                  nwalkers=args.WALKERS, nmax=args.NMAX,
+                                  burn=args.BURN, reset=False, mpi=args.MPI,
+                                  outpath=os.path.join(OUTPATH, STAMP))
+    elif args.PLOT:
+        pspace = np.loadtxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'))
+        sampler = emcee.backends.HDFBackend(os.path.join(OUTPATH,
+                                                         STAMP, 'chain.h5'))
+
+    if args.PLOT:
+        tau = sampler.get_autocorr_time()
+        burnin = int(2 * np.max(tau))
+        thin = int(.5 * np.min(tau))
+        samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+
+        # analyze the walker data
+        aop, loan, inc, r_per, l_cons = map(lambda v: (v[1], v[2]-v[1],
+                                                       v[1]-v[0]),
+                                            zip(*np.percentile(samples,
+                                                               [16, 50, 84],
+                                                               axis=0)))
+        pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
+
+        corner_plot(samples, pspace, pbest, args)
+
+        # print the best parameters found and plot the fit
+        print("Best Fit")
+        print("aop: {0}, loan: {1}, inc: {2}, "
+              "r_per: {3}, l: {4}".format(*pbest))
+        plot_model(hnc3_2, 'HNC3_2_model', params=pbest,
+                   label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
+                   'i = {2:.2f}, '
+                   'r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_model', params=pbest,
+                label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
+                 'i = {2:.2f}, r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
 
     # bit of cleanup
     if not os.listdir(OUTPATH):
@@ -758,7 +807,7 @@ def main(pool, args):
 
 
 if __name__ == '__main__':
-    plt.rcParams.update({'font.size': 22})
+    plt.rcParams.update({'font.size': 14})
     # Parse command line arguments
     PARSER = argparse.ArgumentParser()
 
@@ -780,6 +829,10 @@ if __name__ == '__main__':
     PARSER.add_argument('-o', '--out', dest='OUT', action='store',
                         help='specific out path',
                         default='', type=str)
+    PARSER.add_argument('--sample', dest='SAMPLE',
+                        action='store_true', default=False)
+    PARSER.add_argument('--plot', dest='PLOT',
+                        action='store_true', default=False)
 
     GROUP = PARSER.add_mutually_exclusive_group()
     GROUP.add_argument("--ncores", dest="NCORES", default=1,
