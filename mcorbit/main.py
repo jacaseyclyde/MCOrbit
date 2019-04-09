@@ -772,7 +772,7 @@ def main(pool, args):
                                                          STAMP, 'chain.h5'))
 
     if args.PLOT:
-        tau = sampler.get_autocorr_time()
+        tau = sampler.get_autocorr_time(tol=0)
         burnin = int(2 * np.max(tau))
         thin = int(.5 * np.min(tau))
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
