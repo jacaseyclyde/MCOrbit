@@ -810,7 +810,7 @@ def main(pool, args):
                    'r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
         pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_model', params=pbest,
                 label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
-                'i = {2:.2f}, r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
+                'i = {2:.2f}, r_p = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
         logging.info("Analysis complete")
 
     # bit of cleanup
