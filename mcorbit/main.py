@@ -819,6 +819,14 @@ def main(pool, args):
 
         corner_plot(samples, pspace, pbest, args)
 
+        np.savetxt(os.path.join(OUTPATH, STAMP, 'pbest.csv'), pbest)
+
+        print("aop: {0:.2f} + {1:.2f} - {2:.2f}".format(*aop))
+        print("loan: {0:.2f} + {1:.2f} - {2:.2f}".format(*loan))
+        print("inc: {0:.2f} + {1:.2f} - {2:.2f}".format(*inc))
+        print("r_per: {0:.4f} + {1:.4f} - {2:.4f}".format(*r_per))
+        print("l_cons: {0:.2f} + {1:.2f} - {2:.2f}".format(*l_cons))
+
         plot_model(hnc3_2, 'HNC3_2_fit', params=pbest,
                    label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
                    'i = {2:.2f}, '
