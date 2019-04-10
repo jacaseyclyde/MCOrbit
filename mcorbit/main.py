@@ -69,7 +69,7 @@ from mcorbit import orbits
 from mcorbit import mcmc
 
 
-np.set_printoptions(precision=5, threshold=np.inf)
+np.set_printoptions(precision=2, threshold=np.inf)
 
 STAMP = ""  # datetime.datetime.now().strftime('%Y%m%d%H%M%S')
 OUTPATH = os.path.join(os.path.dirname(__file__), '..', 'out')
@@ -212,6 +212,11 @@ def plot_model(cube, prefix, params=None, r=None, label=None):
         Prefix to use when saving files.
 
     """
+    try:
+        os.makedirs(os.path.join(OUTPATH, STAMP, prefix))
+    except FileExistsError:
+        pass
+
     # pylint: disable=E1101, C0103
     ra_min, ra_max = cube.longitude_extrema.value
     dec_min, dec_max = cube.latitude_extrema.value
@@ -270,14 +275,19 @@ def plot_model(cube, prefix, params=None, r=None, label=None):
     f.colorbar.set_axis_label_text('Integrated Flux $(\\mathrm{Hz}\\,'
                                    '\\mathrm{Jy}/\\mathrm{beam})$')
 
-    f.savefig(os.path.join(OUTPATH, STAMP, '{0}.{1}'
-                           .format(prefix, FILETYPE)))
+    f.savefig(os.path.join(OUTPATH, STAMP, prefix, 'model.{0}'
+                           .format(FILETYPE)))
     return
 
 
 # %%
 def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
             label=None):
+    try:
+        os.makedirs(os.path.join(OUTPATH, STAMP, prefix))
+    except FileExistsError:
+        pass
+
     logging.info("Plotting velocity vs position angle for {0}".format(prefix))
     cube = cube.with_spectral_unit(u.Hz, velocity_convention='radio')
     m0 = cube.moment0()
@@ -373,8 +383,8 @@ def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
 
 #    plt.colorbar().set_label('Integrated Flux $(\\mathrm{Hz}\\,'
 #                             '\\mathrm{Jy}/\\mathrm{beam})$')
-    plt.savefig(os.path.join(OUTPATH, STAMP, '{0}_pa.{1}'
-                                             .format(prefix, FILETYPE)),
+    plt.savefig(os.path.join(OUTPATH, STAMP, prefix, 'pa.{0}'
+                                             .format(FILETYPE)),
                 bbox_inches='tight')
 
     plt.show()
@@ -398,10 +408,15 @@ def plot_moment(cube, moment, prefix, title):
         Prefix to use for filename
 
     """
+    try:
+        os.makedirs(os.path.join(OUTPATH, STAMP, prefix))
+    except FileExistsError:
+        pass
+
     logging.info("Plotting moment {0} for {1}".format(moment, prefix))
     # only make file if it doesnt already exist
-    filename = os.path.join(OUTPATH, STAMP, '{0}_moment_{1}.{2}'
-                            .format(prefix, moment, FILETYPE))
+    filename = os.path.join(OUTPATH, STAMP, prefix, 'moment_{0}.{1}'
+                            .format(moment, FILETYPE))
 #    with Path(filename) as file:
 #        if file.exists():
 #            return
@@ -474,7 +489,7 @@ def corner_plot(samples, prange, fit, args):
     fig = corner.corner(samples,
                         labels=["$\\omega$", "$\\Omega$",
                                 "$i$", "$r_p$", "$l$"],
-                        quantiles=[.16, .84], truths=fit)
+                        quantiles=[.16, .84], truths=fit,)
 
     fig.set_size_inches(12, 12)
 
@@ -514,7 +529,7 @@ def main(pool, args):
 
     # create output folder
     try:
-        os.makedirs(os.path.join(OUTPATH, 'cnd'))
+        os.makedirs(os.path.join(OUTPATH, STAMP))
     except FileExistsError:
         pass
 
@@ -804,13 +819,13 @@ def main(pool, args):
 
         corner_plot(samples, pspace, pbest, args)
 
-        plot_model(hnc3_2, 'HNC3_2_model', params=pbest,
+        plot_model(hnc3_2, 'HNC3_2_fit', params=pbest,
                    label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
                    'i = {2:.2f}, '
-                   'r_p = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
-        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_model', params=pbest,
+                   'r_p = {3:.2f}, l = {4:.2e}$)'.format(*pbest))
+        pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_fit', params=pbest,
                 label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
-                'i = {2:.2f}, r_p = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
+                'i = {2:.2f}, r_p = {3:.2f}, l = {4:.2e}$)'.format(*pbest))
         logging.info("Analysis complete")
 
     # bit of cleanup
@@ -821,7 +836,7 @@ def main(pool, args):
 
 
 if __name__ == '__main__':
-    plt.rcParams.update({'font.size': 14})
+    plt.rcParams.update({'font.size': 10})
     # Parse command line arguments
     PARSER = argparse.ArgumentParser()
 
