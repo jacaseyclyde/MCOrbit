@@ -281,7 +281,7 @@ def plot_model(cube, prefix, params=None, r=None, label=None):
 
 
 # %%
-def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
+def pa_plot(cube, vlim, title=None, params=None, r=None, prefix=None,
             label=None):
     try:
         os.makedirs(os.path.join(OUTPATH, STAMP, prefix))
