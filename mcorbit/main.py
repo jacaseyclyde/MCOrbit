@@ -270,7 +270,7 @@ def plot_model(cube, prefix, params=None, r=None, label=None):
     f.colorbar.set_axis_label_text('Integrated Flux $(\\mathrm{Hz}\\,'
                                    '\\mathrm{Jy}/\\mathrm{beam})$')
 
-    f.savefig(os.path.join(OUTPATH, STAMP, '{0}_model.{1}'
+    f.savefig(os.path.join(OUTPATH, STAMP, '{0}.{1}'
                            .format(prefix, FILETYPE)))
     return
 
@@ -807,7 +807,7 @@ def main(pool, args):
         plot_model(hnc3_2, 'HNC3_2_model', params=pbest,
                    label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
                    'i = {2:.2f}, '
-                   'r_{p} = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
+                   'r_p = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
         pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_model', params=pbest,
                 label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
                 'i = {2:.2f}, r_p = {3:.2f}, l = {4:.2f}$)'.format(*pbest))
