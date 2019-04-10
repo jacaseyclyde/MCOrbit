@@ -373,7 +373,7 @@ def pa_plot(cube, vlim, title="Title", params=None, r=None, prefix=None,
 
 #    plt.colorbar().set_label('Integrated Flux $(\\mathrm{Hz}\\,'
 #                             '\\mathrm{Jy}/\\mathrm{beam})$')
-    plt.savefig(os.path.join(OUTPATH, STAMP, '{0}_model_pa.{1}'
+    plt.savefig(os.path.join(OUTPATH, STAMP, '{0}_pa.{1}'
                                              .format(prefix, FILETYPE)),
                 bbox_inches='tight')
 
