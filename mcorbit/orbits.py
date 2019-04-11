@@ -1036,31 +1036,13 @@ def analysis():
 #    plt.grid()
 #    plt.show()
 
-#    l_range = np.linspace(l_min, l_max, num=n_pts)
-#    rr, ll = np.meshgrid(rr, l_range, indexing='ij')
-#
-#    V_eff_r = V_eff(rr, ll)
-#
-#    fig = plt.figure(figsize=FIGSIZE)
-#    ax = fig.gca(projection='3d')
-#    ax.plot_surface(rr, ll, V_eff_r)
-#    ax.set_xlabel('$r$')
-#    ax.set_ylabel('$l$')
-#    ax.set_zlabel('$V_{eff}$')
-#    ax.set_zlim3d(top=0.)
-#    plt.title("$V_{eff}$ vs. $r, l$")
-#    save_path = os.path.join(os.path.dirname(__file__), '..',
-#                             'out', 'V_eff.pdf')
-#    plt.savefig(save_path, bbox_inches='tight')
-#    plt.show()
-#
 #    V_eff_grad_r = V_eff_grad(rr, ll)
 #
 #    fig = plt.figure(figsize=FIGSIZE)
 #    ax = fig.gca(projection='3d')
 #    ax.plot_surface(rr, ll, V_eff_grad_r)
-##    ax.plot_surface(rr, ll, np.zeros_like(V_eff_grad_r),
-##                    color='orange')
+#    ax.plot_surface(rr, ll, np.zeros_like(V_eff_grad_r),
+#                    color='orange')
 #    ax.set_xlabel('$r$')
 #    ax.set_ylabel('$l$')
 #    ax.set_zlabel('$\\nabla V_{eff}$')

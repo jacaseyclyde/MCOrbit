@@ -700,7 +700,7 @@ def main(pool, args):
         del hnc3_2
         gc.collect()
 
-    if args.PLOT or args.SAMPLE:
+    if args.PLOT or args.SAMPLE or args.VEFF:
         logging.info("Applying mask.")
         hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
                                                    '..', 'dat', 'HNC3_2.fits'),
@@ -733,8 +733,7 @@ def main(pool, args):
 #    plot_moment(hnc3_2_masked, moment=1, prefix='HNC3_2_masked')
 #    plot_moment(hnc3_2_masked, moment=2, prefix='HNC3_2_masked')
 
-    if args.SAMPLE:
-        from mcorbit.model import ln_prob
+    if args.SAMPLE or args.VEFF:
         logging.info("Preparing data.")
         data = ppv_pts(hnc3_2)
         logging.info("Data preparation complete.")
@@ -773,6 +772,30 @@ def main(pool, args):
                                                 - orbits.potential(r_p_ub)))
                 / ((r_a_ub ** 2) - (r_p_ub ** 2))))
 
+    if args.VEFF:
+        rr, ll = np.meshgrid(np.linspace(r_p_lb, 10., num=100),
+                             np.linspace(lmin, lmax, num=100), indexing='ij')
+
+        V_eff_r = orbits.V_eff(rr, ll)
+        V_eff_r[V_eff_r > 0.] = np.nan
+
+        fig = plt.figure(figsize=FIGSIZE)
+        ax = fig.gca(projection='3d')
+        ax.plot_surface(rr, ll, V_eff_r)
+        ax.set_xlabel('$r$')
+        ax.set_ylabel('$l$')
+        ax.set_zlabel('$V_{eff}$')
+#        ax.set_zlim3d(top=0.)
+        ax.set_zbound(upper=0.)
+        plt.title("$V_{eff}$ vs. $r, l$")
+        save_path = os.path.join(os.path.dirname(__file__), '..',
+                                 'out', 'V_eff.pdf')
+        plt.savefig(save_path, bbox_inches='tight')
+        plt.show()
+        print(V_eff_r.shape)
+
+    if args.SAMPLE:
+        from mcorbit.model import ln_prob
         # set up priors and do MCMC. angular momentum bounds are based on
         # the maximum radius
         p_aop = [-90., 90.]  # argument of periapsis
@@ -869,6 +892,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--sample', dest='SAMPLE',
                         action='store_true', default=False)
     PARSER.add_argument('--plot', dest='PLOT',
+                        action='store_true', default=False)
+    PARSER.add_argument('--Veff', dest='VEFF',
                         action='store_true', default=False)
 
     GROUP = PARSER.add_mutually_exclusive_group()
