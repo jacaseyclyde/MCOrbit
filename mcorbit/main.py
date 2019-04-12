@@ -493,7 +493,7 @@ def corner_plot(samples, prange, fit, args):
 
     fig.set_size_inches(12, 12)
 
-    plt.savefig(os.path.join(OUTPATH, 'cnd', 'corner.pdf'
+    plt.savefig(os.path.join(OUTPATH, STAMP, 'corner.pdf'
                              .format(args.WALKERS, args.NMAX)),
                 bbox_inches='tight')
 
@@ -509,7 +509,7 @@ def plot_acor(acor):
     plt.ylim(0, acor.max() + 0.1*(acor.max() - acor.min()))
     plt.xlabel("number of steps")
     plt.ylabel(r"mean $\hat{\tau}$")
-    plt.savefig(os.path.join(OUTPATH, 'cnd', 'acor.pdf'))
+    plt.savefig(os.path.join(OUTPATH, STAMP, 'acor.pdf'))
 
 
 # %%
