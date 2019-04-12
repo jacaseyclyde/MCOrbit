@@ -110,28 +110,37 @@ def ln_prior(theta, space):
         pmax = max(space[i])
 
         if theta[i] < pmin or theta[i] > pmax:
-            return -np.inf
+            return -np.inf, 0
         else:
             prior *= (1. / (pmax - pmin))
 
-    # constraint on the radius to make sure we aren't past our maximum
-    # bound orbit for a given angular momentum
-    rmax = brentq(orbits.V_eff_grad, 6., 9., args=(theta[-1]))
-    if theta[-2] >= rmax:
-        return -np.inf
+    # ensure periapsis is periapsis
+    if theta[-2] > theta[-1]:
+        return -np.inf, 0
 
-    # we can also constrain the orbits such that r0 is the periapsis
-    if orbits.V_eff_grad(theta[-2], theta[-1]) > 0.:
-        return -np.inf
+    if theta[-1] == theta[-2]:
+        l_cons = np.sqrt(orbits.mass(theta[-1]) * theta[-1])
+    else:
+        l_cons = (2 * theta[-2] * theta[-1]
+                  * (theta[-1] * orbits.mass(theta[-2])
+                  - theta[-2] * orbits.mass(theta[-1]))) / ((theta[-1] ** 2)
+                                                            - (theta[-2] ** 2))
+        if l_cons < 0.:
+            return -np.inf, 0
 
-    # next check that orbits are bounded
-    V0 = orbits.V_eff(theta[-2], theta[-1])
+        l_cons = np.sqrt(l_cons)
 
-    if (V0 > orbits.V_eff(min(space[-2]), theta[-1])
-       or V0 > orbits.V_eff(rmax, theta[-1])):
-        return -np.inf
+    V_eff_r = orbits.V_eff(np.linspace(theta[-2], theta[-1]), l_cons)
+    if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
+        return -np.inf, l_cons
 
-    return np.log(prior)
+    # ensure periapsis has non-negative radial acceleration and
+    # apoapsis has non-positive radial acceleration
+    if (orbits.V_eff_grad(theta[-2], l_cons) > 0.
+        or orbits.V_eff_grad(theta[-1], l_cons) < 0.):
+        return -np.inf, l_cons
+
+    return np.log(prior), l_cons
 
 
 def ln_prob(theta, data, space, cov):
@@ -158,10 +167,10 @@ def ln_prob(theta, data, space, cov):
 
     """
     # first check the prior
-    lnprior = ln_prior(theta, space)
+    lnprior, l_cons = ln_prior(theta, space)
     if not np.isfinite(lnprior):
         return -np.inf, -np.inf
-    lnlike = ln_like(data, orbits.model(theta), cov)
+    lnlike = ln_like(data, orbits.model(theta, l_cons), cov)
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior

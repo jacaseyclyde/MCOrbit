@@ -585,7 +585,7 @@ def sky_coords(pos, vel):
 # =============================================================================
 # The model function
 # =============================================================================
-def model(theta, coords=False):
+def model(theta, l_cons, coords=False):
     """Model generator.
 
     Generates model orbits around Sgr A*, as seen from the FK5
@@ -596,10 +596,10 @@ def model(theta, coords=False):
     theta : (aop, loan, inc, r_per, r_ap)
 
     """
-    aop, loan, inc, r0, l_cons = theta
+    aop, loan, inc, rp, ra = theta
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
-        pos, vel = polar_to_cartesian(*orbit(r0, l_cons))
+        pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
 
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
