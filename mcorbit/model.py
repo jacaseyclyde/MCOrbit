@@ -134,12 +134,20 @@ def ln_prior(theta, space):
     if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
         return -np.inf, l_cons
 
-    # following may not be necessary, by the above condition
-#    # ensure periapsis has non-negative radial acceleration and
-#    # apoapsis has non-positive radial acceleration
-#    if (orbits.V_eff_grad(theta[-2], l_cons) > 0.
-#        or orbits.V_eff_grad(theta[-1], l_cons) < 0.):
-#        return -np.inf, l_cons
+    V_p = orbits.V_eff(theta[-2], l_cons)
+    V_a = orbits.V_eff(theta[-1], l_cons)
+    # V_eff must be equal at orbit endpoints
+    if V_p != V_a:
+        return -np.inf, l_cons
+
+    # check for stable orbit endpoints
+    if (orbits.V_eff_grad(theta[-2], l_cons) == 0
+        and orbits.V_eff(theta[-2] - 0.01, l_cons) < V_p):
+        return -np.inf, l_cons
+
+    if (orbits.V_eff_grad(theta[-1], l_cons) == 0
+        and orbits.V_eff(theta[-1] + 0.01, l_cons) < V_a):
+        return -np.inf, l_cons
 
     return np.log(prior), l_cons
 
