@@ -488,7 +488,7 @@ def corner_plot(samples, prange, fit, args):
     """
     fig = corner.corner(samples,
                         labels=["$\\omega$", "$\\Omega$",
-                                "$i$", "$r_p$", "$l$"],
+                                "$i$", "$r_p$", "$r_a$"],
                         quantiles=[.16, .84], truths=fit,)
 
     fig.set_size_inches(12, 12)
@@ -760,19 +760,20 @@ def main(pool, args):
         # momentum
         r_p_lb = np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
         r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
-        lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
-                                                - orbits.potential(r_p_lb)))
-                / ((r_a_lb ** 2) - (r_p_lb ** 2))))
 
         # our upper bound on the radius is determined by the position of
         # the furthest local maximum
-        r_a_ub = brentq(orbits.V_eff_grad, 6., 9., args=(lmin))
-        r_p_ub = 6.  # r_a_lb
+        r_p_ub = 2. * r_a_lb
+        r_a_ub = 10. * r_p_ub
+
+    if args.VEFF:
+        lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
+                                                - orbits.potential(r_p_lb)))
+                / ((r_a_lb ** 2) - (r_p_lb ** 2))))
         lmax = (r_p_ub * r_a_ub * np.sqrt((2 * (orbits.potential(r_a_ub)
                                                 - orbits.potential(r_p_ub)))
                 / ((r_a_ub ** 2) - (r_p_ub ** 2))))
 
-    if args.VEFF:
         rr, ll = np.meshgrid(np.linspace(r_p_lb, 10., num=100),
                              np.linspace(lmin, lmax, num=100), indexing='ij')
 
@@ -802,12 +803,12 @@ def main(pool, args):
         p_loan = [90., 270.]  # longitude of ascending node
         p_inc = [90., 270.]  # inclination
         p_rp = [r_p_lb, r_p_ub]  # starting radial distance
-        p_l = [lmin, lmax]  # ang. mom.
+        p_ra = [r_a_lb, r_a_ub]  # ang. mom.
         pspace = np.array([p_aop,
                            p_loan,
                            p_inc,
                            p_rp,
-                           p_l], dtype=np.float64)
+                           p_ra], dtype=np.float64)
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
         logging.info("Sampling probability space.")
@@ -838,7 +839,7 @@ def main(pool, args):
         pbest = (aop[0], loan[0], inc[0], r_per[0], l_cons[0])
         # print the best parameters found and plot the fit
         logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
-                     "r_per: {3}, l: {4}".format(*pbest))
+                     "r_per: {3}, r_ap: {4}".format(*pbest))
 
         corner_plot(samples, pspace, pbest, args)
 
@@ -848,15 +849,15 @@ def main(pool, args):
         print("loan: {0:.2f} + {1:.2f} - {2:.2f}".format(*loan))
         print("inc: {0:.2f} + {1:.2f} - {2:.2f}".format(*inc))
         print("r_per: {0:.4f} + {1:.4f} - {2:.4f}".format(*r_per))
-        print("l_cons: {0:.2f} + {1:.2f} - {2:.2f}".format(*l_cons))
+        print("r_ap: {0:.2f} + {1:.2f} - {2:.2f}".format(*l_cons))
 
         plot_model(hnc3_2, 'HNC3_2_fit', params=pbest,
                    label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
                    'i = {2:.2f}, '
-                   'r_p = {3:.2f}, l = {4:.2e}$)'.format(*pbest))
+                   'r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*pbest))
         pa_plot(hnc3_2, [vmin, vmax], prefix='HNC3_2_fit', params=pbest,
                 label='Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, '
-                'i = {2:.2f}, r_p = {3:.2f}, l = {4:.2e}$)'.format(*pbest))
+                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*pbest))
         logging.info("Analysis complete")
 
     # bit of cleanup

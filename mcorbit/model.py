@@ -134,11 +134,12 @@ def ln_prior(theta, space):
     if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
         return -np.inf, l_cons
 
-    # ensure periapsis has non-negative radial acceleration and
-    # apoapsis has non-positive radial acceleration
-    if (orbits.V_eff_grad(theta[-2], l_cons) > 0.
-        or orbits.V_eff_grad(theta[-1], l_cons) < 0.):
-        return -np.inf, l_cons
+    # following may not be necessary, by the above condition
+#    # ensure periapsis has non-negative radial acceleration and
+#    # apoapsis has non-positive radial acceleration
+#    if (orbits.V_eff_grad(theta[-2], l_cons) > 0.
+#        or orbits.V_eff_grad(theta[-1], l_cons) < 0.):
+#        return -np.inf, l_cons
 
     return np.log(prior), l_cons
 
