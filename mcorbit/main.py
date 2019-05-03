@@ -197,7 +197,7 @@ def ppv_pts(cube):
 # =============================================================================
 # Plot functions
 # =============================================================================
-def plot_model(cube, prefix, params, label=None):
+def plot_model(cube, prefix, params, theta_min, theta_max, label=None):
     """Plots the model in 3 graphs depicting each plane of the ppv space
 
     Plots an orbit model (as defined by `params`) over the data, showing all 3
@@ -255,12 +255,32 @@ def plot_model(cube, prefix, params, label=None):
     f.set_xaxis_coord_type('longitude')
     f.set_yaxis_coord_type('latitude')
 
+    x, y = f.world2pixel(ra, dec)
+
+    sgrastar_x, sgrastar_y = f.world2pixel(GCRA, GCDEC)
+
+    zero_x = x - sgrastar_x
+    zero_y = y - sgrastar_y
+
+    theta = np.arctan2(zero_y, zero_x)
+    theta = (theta + np.pi) * 180. / np.pi
+
+    whereplus = np.where(theta < 270)
+    whereminus = np.where(theta >= 270)
+
+    # Tweak theta to match the astronomical norm (defined as east of north)
+    theta[whereplus] = theta[whereplus] + 90
+    theta[whereminus] = theta[whereminus] - 270
+
+    wheretheta = np.where((theta >= theta_min) * (theta <= theta_max))[0]
+
     # add Sgr A*
     f.show_markers(GCRA, GCDEC, layer='sgra', label='Sgr A*',
                    edgecolor='black', facecolor='black', marker='o', s=10)
 
-    f.show_lines([np.array([ra.tolist(), dec.tolist()])], layer='model',
-                 color='black', linestyle='dashed',
+    print(np.shape(wheretheta))
+    f.show_lines([np.array([ra.tolist(), dec.tolist()])[:, wheretheta]],
+                 layer='model', color='black', linestyle='dashed',
                  label=label)
 
     plt.legend()
@@ -284,7 +304,7 @@ def plot_model(cube, prefix, params, label=None):
 
 
 # %%
-def pa_model(params, f):
+def pa_model(params, f, theta_min, theta_max):
     aop, loan, inc, r_p, r_a = params
     if r_p == r_a:
         ones = np.ones(360)
@@ -324,7 +344,9 @@ def pa_model(params, f):
     theta[whereplus] = theta[whereplus] + 90
     theta[whereminus] = theta[whereminus] - 270
 
-    return np.transpose(sorted(zip(theta, vel)))
+    wheretheta = np.where((theta >= theta_min) * (theta <= theta_max))[0]
+
+    return np.transpose(sorted(zip(theta[wheretheta], vel[wheretheta])))
 
 
 # %%
@@ -724,10 +746,25 @@ def main(pool, args):
     vmax = hnc3_2.spectral_axis.max().value
     logging.info("Mask complete.")
 
-    logging.info("Making position angles")
-    pos_ang, f = pa_transform(hnc3_2)
-    pa_model((30, 135, 215, 2, 4.5), f)
-    return pos_ang
+    try:
+        pos_ang = np.load('pos_ang.npy')
+
+        cube = hnc3_2.with_spectral_unit(u.Hz, velocity_convention='radio')
+        m0 = cube.moment0()
+
+        # position angle plot
+        xx, yy = np.meshgrid(np.arange(0, m0.shape[1]),
+                             np.arange(0, m0.shape[0]),
+                             indexing='xy')
+
+        # convenient functions for finding the location of Sgr A*
+        f = aplpy.FITSFigure(m0.hdu, figsize=FIGSIZE)
+        f.set_xaxis_coord_type('longitude')
+        f.set_yaxis_coord_type('latitude')
+    except FileNotFoundError:
+        logging.info("Making position angles")
+        pos_ang, f = pa_transform(hnc3_2)
+        np.save('pos_ang.npy', pos_ang)
 
     wheredata = np.where(pos_ang.any(axis=0))
     min_pos_ang = np.min(wheredata)
@@ -747,16 +784,17 @@ def main(pool, args):
 
         # Plot Martin 2012 model
         martin_model = (90., 90., 30., 1.6, 1.6)
-        plot_model(hnc3_2, 'HNC3_2_Martin', params=martin_model,
+        plot_model(hnc3_2, 'HNC3_2_Martin', min_pos_ang, max_pos_ang,
+                   params=martin_model,
                    label="Martin et al. 2012")
-        martin_pa = pa_model(martin_model, f)
+        martin_pa = pa_model(martin_model, f, min_pos_ang, max_pos_ang)
         pa_plot(pos_ang, [vmin, vmax], model=martin_pa, prefix='HNC3_2_Martin',
                 label="Martin et al. 2012")
 
 #    plot_moment(hnc3_2_masked, moment=1, prefix='HNC3_2_masked')
 #    plot_moment(hnc3_2_masked, moment=2, prefix='HNC3_2_masked')
 
-    if args.SAMPLE or args.VEFF:
+    if args.SAMPLE or args.VEFF or args.CORNER:
         logging.info("Preparing data.")
         data = ppv_pts(hnc3_2)
         logging.info("Data preparation complete.")
@@ -818,8 +856,7 @@ def main(pool, args):
         plt.show()
         print(V_eff_r.shape)
 
-    if args.SAMPLE:
-        from mcorbit.model import ln_prob
+    if args.SAMPLE or args.CORNER:
         # set up priors and do MCMC. angular momentum bounds are based on
         # the maximum radius
         p_aop = [-90., 90.]  # argument of periapsis
@@ -832,10 +869,14 @@ def main(pool, args):
                            p_inc,
                            p_rp,
                            p_ra], dtype=np.float64)
+
+    if args.SAMPLE:
+        from mcorbit.model import ln_prob
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
         logging.info("Sampling probability space.")
-        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace,
+        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace, f,
+                                  [min_pos_ang, max_pos_ang],
                                   nwalkers=args.WALKERS, nmax=args.NMAX,
                                   burn=args.BURN, reset=False, mpi=args.MPI,
                                   outpath=os.path.join(OUTPATH, STAMP))
@@ -880,38 +921,39 @@ def main(pool, args):
 
 #        ptest = (35., 150., 35. + 180., 2., 4.)  # (30, 135, 215, 2, 4.5)
         from tqdm import tqdm
-        aop_range = np.linspace(-40, 70, num=10)
-        loan_range = np.linspace(130, 220, num=10)
-        inc_range = np.linspace(190, 230, num=10)
+        aop_range = np.linspace(-40, 70, num=5)
+        loan_range = np.linspace(130, 220, num=5)
+        inc_range = np.linspace(190, 230, num=5)
         r_p_range = np.linspace(r_p_lb, r_p_ub, num=5)
         r_a_range = np.linspace(r_a_lb, r_a_ub, num=5)
-        with tqdm(total=len(aop_range)*len(loan_range)*len(inc_range)) as pbar:
+        with tqdm(total=len(aop_range) * len(loan_range)
+                  * len(inc_range) * len(r_p_range) * len(r_a_range)) as pbar:
             for aop in aop_range:
                 for loan in loan_range:
                     for inc in inc_range:
                         for r_p in r_p_range:
                             for r_a in r_a_range:
-                                    ptest = (aop, loan, inc, r_p, r_a)
+                                ptest = (aop, loan, inc, r_p, r_a)
 
-                                    label = 'Best Fit ($\\omega = {0:.2f}, ' \
-                                            '\\Omega = {1:.2f}, ' \
-                                            'i = {2:.2f}, ' \
-                                            'r_p = {3:.2f}, r_a = {4:.2f}$)' \
-                                            .format(*ptest)
+                                label = 'Best Fit ($\\omega = {0:.2f}, ' \
+                                        '\\Omega = {1:.2f}, ' \
+                                        'i = {2:.2f}, ' \
+                                        'r_p = {3:.2f}, r_a = {4:.2f}$)' \
+                                        .format(*ptest)
 
-                                    prefix = 'HNC3_2_fit_{0}_{1}_{2}' \
-                                             .format(int(aop), int(loan),
-                                                     int(inc), r_p, r_a)
-                                    plot_model(hnc3_2,
-                                               prefix,
-                                               params=ptest,
-                                               label=label)
-                                    model = pa_model(ptest, f)
-                                    pa_plot(pos_ang, [vmin, vmax], model=model,
-                                            prefix=prefix,
-                                            label=label)
-                                    break
-                        pbar.update(1)
+                                prefix = 'HNC3_2_fit_{0}_{1}_{2}_{3}_{4}' \
+                                         .format(int(aop), int(loan),
+                                                 int(inc), r_p, r_a)
+                                plot_model(hnc3_2,
+                                           prefix, ptest,
+                                           min_pos_ang, max_pos_ang,
+                                           label=label)
+                                model = pa_model(ptest, f,
+                                                 min_pos_ang, max_pos_ang)
+                                pa_plot(pos_ang, [vmin, vmax], model=model,
+                                        prefix=prefix,
+                                        label=label)
+                                pbar.update(1)
         logging.info("Analysis complete")
 
     # bit of cleanup

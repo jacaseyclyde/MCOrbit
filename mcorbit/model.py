@@ -23,8 +23,10 @@ Created on Fri Feb  9 16:08:27 2018
 @author: jacaseyclyde
 """
 import numpy as np
+
 from scipy.stats import multivariate_normal
-from scipy.optimize import brentq
+
+import astropy.units as u
 
 from mcorbit import orbits
 
@@ -204,7 +206,7 @@ def ln_prob(theta, data, space, cov, f, pos_ang):
     model = np.array([c.ra.rad, c.dec.rad,
                      c.radial_velocity.value]).T
 
-    wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))
+    wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))[0]
 
     lnlike = ln_like(data, model[wheretheta], cov)
     if not np.isfinite(lnlike):
