@@ -535,6 +535,7 @@ def main(pool, args):
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.INFO)
+    logging.info("Starting analysis.")
 
     if args.PLOT:
         # load, plot, and garbage collect all tracers
@@ -764,7 +765,7 @@ def main(pool, args):
         # our upper bound on the radius is determined by the position of
         # the furthest local maximum
         r_p_ub = 2. * r_a_lb
-        r_a_ub = 10. * r_p_ub
+        r_a_ub = 10.  # * r_p_ub
 
     if args.VEFF:
         lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)

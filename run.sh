@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH --partition=nodes
-#SBATCH -n 252
+#SBATCH -n 504
 #SBATCH --time=30-00:00:00
 #SBATCH --job-name=cnd_apsides
 #SBATCH --output=cnd_apsides.out
@@ -13,4 +13,4 @@ module purge
 module load intel-python3
 module load mvapich2-2.2/intel
 
-mpiexec python3 mcorbit/main.py --mpi -d ~/MCOrbit/dat/ --nmax 500000 --walkers 252 --out apsides -s 0.5 --sample
+mpiexec python3 mcorbit/main.py --mpi -d ~/MCOrbit/dat/ --nmax 100000 --walkers 504 --out apsides -s 0.5 --sample

@@ -445,7 +445,7 @@ def orbit(r0, l_cons):
         ang_pos = np.append(ang_pos, ang_new)  # * u.rad
         ang_vel = np.append(ang_vel, ang_vel_new)  # * u.rad / u.yr
 
-        if r_new == 0.:
+        if r_new == 0. or r_new > 10.:
             break
 
     return (r_pos * u.pc, r_vel * u.pc / u.yr,
