@@ -29,6 +29,7 @@ FK5 coordinate system for comparison to radio data.
 # pylint: disable=W0621, W0611
 import os
 import warnings
+import time
 
 import numpy as np
 
@@ -58,6 +59,8 @@ FIGSIZE = (12, 12)
 # =============================================================================
 GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
                   dec=Angle('-29:0:28.118 degrees'))
+GCRA = GAL_CENTER.transform_to(FK5).ra.value
+GCDEC = GAL_CENTER.transform_to(FK5).dec.value
 
 G = (G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))).value
 
@@ -352,7 +355,7 @@ def angular_momentum(r1, r2):
 #        r2 = r2 * u.pc
 
     if r1 == r2:
-        return (r1 * np.sqrt(-1 * potential(r1) - mass_grad(r1))).value
+        return (r1 * np.sqrt(-1 * potential(r1) - mass_grad(r1)))
 
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
@@ -445,7 +448,7 @@ def orbit(r0, l_cons):
         ang_pos = np.append(ang_pos, ang_new)  # * u.rad
         ang_vel = np.append(ang_vel, ang_vel_new)  # * u.rad / u.yr
 
-        if r_new == 0.:
+        if r_new == 0. or r_new >= 10.:
             break
 
     return (r_pos * u.pc, r_vel * u.pc / u.yr,
@@ -1130,8 +1133,18 @@ def orbits_test():
 
 
 if __name__ == '__main__':
+    r1 = 2.
+    r2 = 2.5
+    l_cons = angular_momentum(r1, 2.00000000000000000000001)
+    print(l_cons)
+
+#    t0 = time.time()
+#    orb = orbit(r1, l_cons)
+#    t1 = time.time()
+#    print(t1 - t0)
+#    print(np.shape(orb))
 
 #    profile_test()
-    orbits_test()
+#    orbits_test()
 
 #    analysis()

@@ -34,10 +34,10 @@ import os
 
 import numpy as np
 import emcee
-from emcee.autocorr import AutocorrError
 
 
-def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
+def fit_orbits(pool, lnlike, data, pspace, frame, pos_ang_lim,
+               nwalkers=500, nmax=10000, burn=1000,
                reset=True, mpi=False, outpath=None):
     """Uses MCMC to explore the parameter space specified by `priors`.
 
@@ -111,7 +111,8 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
             sys.exit(0)
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
-                                        args=[data, pspace, cov], pool=pool,
+                                        args=[data, pspace, cov,
+                                              frame, pos_ang_lim], pool=pool,
                                         backend=backend)
 
         # initial burn-in. this appears to be necessary to avoid
@@ -123,6 +124,7 @@ def fit_orbits(pool, lnlike, data, pspace, nwalkers=500, nmax=10000, burn=1000,
         # this also includes the burn in, which we will discard later
         # discard based on autocorrelation times
         old_tau = np.inf
+
         for sample in sampler.sample(pos, iterations=nmax, progress=True):
             if sampler.iteration % 100:
                 continue

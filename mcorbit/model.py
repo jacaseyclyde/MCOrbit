@@ -152,7 +152,7 @@ def ln_prior(theta, space):
     return np.log(prior), l_cons
 
 
-def ln_prob(theta, data, space, cov):
+def ln_prob(theta, data, space, cov, f, pos_ang):
     """Calculates P(data|model)
 
     Calculates the natural log of the Bayesian probability that the
@@ -179,7 +179,34 @@ def ln_prob(theta, data, space, cov):
     lnprior, l_cons = ln_prior(theta, space)
     if not np.isfinite(lnprior):
         return -np.inf, -np.inf
-    lnlike = ln_like(data, orbits.model(theta, l_cons), cov)
+    c = orbits.model(theta, l_cons, coords=True)
+
+    ra = c.ra.to(u.deg).value
+    dec = c.dec.to(u.deg).value
+
+    x, y = f.world2pixel(ra, dec)
+
+    sgrastar_x, sgrastar_y = f.world2pixel(orbits.GCRA, orbits.GCDEC)
+
+    zero_x = x - sgrastar_x
+    zero_y = y - sgrastar_y
+
+    theta = np.arctan2(zero_y, zero_x)
+    theta = (theta + np.pi) * 180. / np.pi
+
+    whereplus = np.where(theta < 270)
+    whereminus = np.where(theta >= 270)
+
+    # Tweak theta to match the astronomical norm (defined as east of north)
+    theta[whereplus] = theta[whereplus] + 90
+    theta[whereminus] = theta[whereminus] - 270
+
+    model = np.array([c.ra.rad, c.dec.rad,
+                     c.radial_velocity.value]).T
+
+    wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))
+
+    lnlike = ln_like(data, model[wheretheta], cov)
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior
