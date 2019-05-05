@@ -274,12 +274,16 @@ def plot_model(cube, prefix, params, theta_min, theta_max, label=None):
 
     wheretheta = np.where((theta >= theta_min) * (theta <= theta_max))[0]
 
+    model = np.array([ra.tolist(), dec.tolist()]).T[wheretheta]
+    theta, model = np.transpose(sorted(zip(theta[wheretheta], model)))
+    ra = [point[0] for point in model]
+    dec = [point[1] for point in model]
+
     # add Sgr A*
     f.show_markers(GCRA, GCDEC, layer='sgra', label='Sgr A*',
                    edgecolor='black', facecolor='black', marker='o', s=10)
 
-    print(np.shape(wheretheta))
-    f.show_lines([np.array([ra.tolist(), dec.tolist()])[:, wheretheta]],
+    f.show_lines([np.array([ra, dec])],
                  layer='model', color='black', linestyle='dashed',
                  label=label)
 
@@ -398,7 +402,7 @@ def pa_plot(pos_ang, vlim, model=None, title=None, prefix=None,
     except FileExistsError:
         pass
 
-    logging.info("Plotting velocity vs position angle for {0}".format(prefix))
+#    logging.info("Plotting velocity vs position angle for {0}".format(prefix))
 
     plt.figure(figsize=(12, 4))
     plt.imshow(pos_ang,
@@ -920,47 +924,45 @@ def main(pool, args):
         print("r_ap: {0:.2f} + {1:.2f} - {2:.2f}".format(*r_ap))
 
 #        ptest = (35., 150., 35. + 180., 2., 4.)  # (30, 135, 215, 2, 4.5)
-        from tqdm import tqdm
-        aop_range = np.linspace(-40, 70, num=5)
-        loan_range = np.linspace(130, 220, num=5)
-        inc_range = np.linspace(190, 230, num=5)
-        r_p_range = np.linspace(r_p_lb, r_p_ub, num=5)
-        r_a_range = np.linspace(r_a_lb, r_a_ub, num=5)
-        with tqdm(total=len(aop_range) * len(loan_range)
-                  * len(inc_range) * len(r_p_range) * len(r_a_range)) as pbar:
-            for aop in aop_range:
-                for loan in loan_range:
-                    for inc in inc_range:
-                        for r_p in r_p_range:
-                            for r_a in r_a_range:
-                                ptest = (aop, loan, inc, r_p, r_a)
-
-                                label = 'Best Fit ($\\omega = {0:.2f}, ' \
-                                        '\\Omega = {1:.2f}, ' \
-                                        'i = {2:.2f}, ' \
-                                        'r_p = {3:.2f}, r_a = {4:.2f}$)' \
-                                        .format(*ptest)
-
-                                prefix = 'HNC3_2_fit_{0}_{1}_{2}_{3}_{4}' \
-                                         .format(int(aop), int(loan),
-                                                 int(inc), r_p, r_a)
-                                plot_model(hnc3_2,
-                                           prefix, ptest,
-                                           min_pos_ang, max_pos_ang,
-                                           label=label)
-                                model = pa_model(ptest, f,
-                                                 min_pos_ang, max_pos_ang)
-                                pa_plot(pos_ang, [vmin, vmax], model=model,
-                                        prefix=prefix,
-                                        label=label)
-                                pbar.update(1)
+#        from tqdm import tqdm
+#        aop_range = np.linspace(-40, 70, num=5)
+#        loan_range = np.linspace(130, 220, num=5)
+#        inc_range = np.linspace(190, 230, num=5)
+#        r_p_range = np.linspace(r_p_lb, r_p_ub, num=5)
+#        r_a_range = np.linspace(r_a_lb, r_a_ub, num=5)
+#        with tqdm(total=len(aop_range) * len(loan_range)
+#                  * len(inc_range) * len(r_p_range) * len(r_a_range)) as pbar:
+#            for aop in aop_range:
+#                for loan in loan_range:
+#                    for inc in inc_range:
+#                        for r_p in r_p_range:
+#                            for r_a in r_a_range:
+#                                ptest = (aop, loan, inc, r_p, r_a)
+#
+#                                label = 'Best Fit ($\\omega = {0:.2f}, ' \
+#                                        '\\Omega = {1:.2f}, ' \
+#                                        'i = {2:.2f}, ' \
+#                                        'r_p = {3:.2f}, r_a = {4:.2f}$)' \
+#                                        .format(*ptest)
+#
+#                                prefix = 'HNC3_2_fit_{0}_{1}_{2}_{3}_{4}' \
+#                                         .format(int(aop), int(loan),
+#                                                 int(inc), r_p, r_a)
+#                                plot_model(hnc3_2,
+#                                           prefix, ptest,
+#                                           min_pos_ang, max_pos_ang,
+#                                           label=label)
+#                                model = pa_model(ptest, f,
+#                                                 min_pos_ang, max_pos_ang)
+#                                pa_plot(pos_ang, [vmin, vmax], model=model,
+#                                        prefix=prefix,
+#                                        label=label)
+#                                pbar.update(1)
         logging.info("Analysis complete")
 
     # bit of cleanup
     if not os.listdir(OUTPATH):
         os.rmdir(OUTPATH)
-
-    return pos_ang, model
 
 
 if __name__ == '__main__':
@@ -1005,4 +1007,4 @@ if __name__ == '__main__':
 
     pool = schwimmbad.choose_pool(mpi=args.MPI, processes=args.NCORES)
 
-    pos_ang = main(pool, args)
+    main(pool, args)
