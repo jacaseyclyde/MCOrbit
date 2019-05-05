@@ -745,13 +745,13 @@ def main(pool, args):
                                                '..', 'dat', 'HNC3_2.fits'),
                          maskfile=os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.fits'))
+                                               'HNC3_2.mask.north.fits'))
     vmin = hnc3_2.spectral_axis.min().value
     vmax = hnc3_2.spectral_axis.max().value
     logging.info("Mask complete.")
 
     try:
-        pos_ang = np.load('pos_ang.npy')
+        pos_ang = np.load('pos_ang.north.npy')
 
         cube = hnc3_2.with_spectral_unit(u.Hz, velocity_convention='radio')
         m0 = cube.moment0()
@@ -768,7 +768,7 @@ def main(pool, args):
     except FileNotFoundError:
         logging.info("Making position angles")
         pos_ang, f = pa_transform(hnc3_2)
-        np.save('pos_ang.npy', pos_ang)
+        np.save('pos_ang.north.npy', pos_ang)
 
     wheredata = np.where(pos_ang.any(axis=0))
     min_pos_ang = np.min(wheredata)
@@ -923,7 +923,14 @@ def main(pool, args):
         print("r_per: {0:.2f} + {1:.2f} - {2:.2f}".format(*r_per))
         print("r_ap: {0:.2f} + {1:.2f} - {2:.2f}".format(*r_ap))
 
-#        ptest = (35., 150., 35. + 180., 2., 4.)  # (30, 135, 215, 2, 4.5)
+        ptest = (35., 135., 35. + 180., 2., 4.5)  # (30, 135, 215, 2, 4.5)
+        label = 'Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, ' \
+                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*pbest)
+        prefix = 'HNC3_2_fit_{0}_{1}_{2}_{3}_{4}'.format(*pbest)
+        plot_model(hnc3_2, prefix, pbest,
+                   min_pos_ang, max_pos_ang, label=label)
+        model = pa_model(pbest, f, min_pos_ang, max_pos_ang)
+        pa_plot(pos_ang, [vmin, vmax], model=model, prefix=prefix, label=label)
 #        from tqdm import tqdm
 #        aop_range = np.linspace(-40, 70, num=5)
 #        loan_range = np.linspace(130, 220, num=5)
