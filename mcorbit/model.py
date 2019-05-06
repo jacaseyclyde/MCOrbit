@@ -154,7 +154,7 @@ def ln_prior(theta, space):
     return np.log(prior), l_cons
 
 
-def ln_prob(theta, data, space, cov, f, pos_ang):
+def ln_prob(theta, data, space, cov, pos_ang):
     """Calculates P(data|model)
 
     Calculates the natural log of the Bayesian probability that the

@@ -36,7 +36,7 @@ import numpy as np
 import emcee
 
 
-def fit_orbits(pool, lnlike, data, pspace, frame, pos_ang_lim,
+def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
                nwalkers=500, nmax=10000, burn=1000,
                reset=True, mpi=False, outpath=None):
     """Uses MCMC to explore the parameter space specified by `priors`.
@@ -112,7 +112,7 @@ def fit_orbits(pool, lnlike, data, pspace, frame, pos_ang_lim,
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
                                         args=[data, pspace, cov,
-                                              frame, pos_ang_lim], pool=pool,
+                                              pos_ang_lim], pool=pool,
                                         backend=backend)
 
         # initial burn-in. this appears to be necessary to avoid

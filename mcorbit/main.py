@@ -745,13 +745,13 @@ def main(pool, args):
                                                '..', 'dat', 'HNC3_2.fits'),
                          maskfile=os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.north.fits'))
+                                               'HNC3_2.mask.south.fits'))
     vmin = hnc3_2.spectral_axis.min().value
     vmax = hnc3_2.spectral_axis.max().value
     logging.info("Mask complete.")
 
     try:
-        pos_ang = np.load('pos_ang.north.npy')
+        pos_ang = np.load('pos_ang.south.npy')
 
         cube = hnc3_2.with_spectral_unit(u.Hz, velocity_convention='radio')
         m0 = cube.moment0()
@@ -768,7 +768,7 @@ def main(pool, args):
     except FileNotFoundError:
         logging.info("Making position angles")
         pos_ang, f = pa_transform(hnc3_2)
-        np.save('pos_ang.north.npy', pos_ang)
+        np.save('pos_ang.south.npy', pos_ang)
 
     wheredata = np.where(pos_ang.any(axis=0))
     min_pos_ang = np.min(wheredata)
@@ -879,7 +879,7 @@ def main(pool, args):
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
         logging.info("Sampling probability space.")
-        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace, f,
+        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                   [min_pos_ang, max_pos_ang],
                                   nwalkers=args.WALKERS, nmax=args.NMAX,
                                   burn=args.BURN, reset=False, mpi=args.MPI,
@@ -913,7 +913,7 @@ def main(pool, args):
         logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
                      "r_per: {3}, r_ap: {4}".format(*pbest))
 
-#        corner_plot(samples, pspace, pbest, args)
+        corner_plot(samples, pspace, pbest, args)
 
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pbest.csv'), pbest)
 
