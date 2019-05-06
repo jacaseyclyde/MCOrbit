@@ -879,7 +879,7 @@ def main(pool, args):
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'), pspace)
 
         logging.info("Sampling probability space.")
-        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace, f,
+        sampler = mcmc.fit_orbits(pool, ln_prob, data, pspace,
                                   [min_pos_ang, max_pos_ang],
                                   nwalkers=args.WALKERS, nmax=args.NMAX,
                                   burn=args.BURN, reset=False, mpi=args.MPI,
@@ -913,7 +913,7 @@ def main(pool, args):
         logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
                      "r_per: {3}, r_ap: {4}".format(*pbest))
 
-#        corner_plot(samples, pspace, pbest, args)
+        corner_plot(samples, pspace, pbest, args)
 
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pbest.csv'), pbest)
 
