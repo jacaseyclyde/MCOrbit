@@ -59,8 +59,8 @@ FIGSIZE = (12, 12)
 # =============================================================================
 GAL_CENTER = ICRS(ra=Angle('17h45m40.0409s'),
                   dec=Angle('-29:0:28.118 degrees'))
-GCRA = GAL_CENTER.transform_to(FK5).ra.value
-GCDEC = GAL_CENTER.transform_to(FK5).dec.value
+GCRA = GAL_CENTER.transform_to(FK5).ra
+GCDEC = GAL_CENTER.transform_to(FK5).dec
 
 G = (G.to((u.pc ** 3) / (u.Msun * u.yr ** 2))).value
 

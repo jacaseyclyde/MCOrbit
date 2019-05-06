@@ -183,17 +183,13 @@ def ln_prob(theta, data, space, cov, f, pos_ang):
         return -np.inf, -np.inf
     c = orbits.model(theta, l_cons, coords=True)
 
-    ra = c.ra.to(u.deg).value
-    dec = c.dec.to(u.deg).value
+    ra = c.ra.rad
+    dec = c.dec.rad
 
-    x, y = f.world2pixel(ra, dec)
+    zero_ra = ra - orbits.GCRA.rad
+    zero_dec = dec - orbits.GCDEC.rad
 
-    sgrastar_x, sgrastar_y = f.world2pixel(orbits.GCRA, orbits.GCDEC)
-
-    zero_x = x - sgrastar_x
-    zero_y = y - sgrastar_y
-
-    theta = np.arctan2(zero_y, zero_x)
+    theta = np.arctan2(zero_ra, zero_dec)
     theta = (theta + np.pi) * 180. / np.pi
 
     whereplus = np.where(theta < 270)
@@ -203,7 +199,7 @@ def ln_prob(theta, data, space, cov, f, pos_ang):
     theta[whereplus] = theta[whereplus] + 90
     theta[whereminus] = theta[whereminus] - 270
 
-    model = np.array([c.ra.rad, c.dec.rad,
+    model = np.array([ra, dec,
                      c.radial_velocity.value]).T
 
     wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))[0]
