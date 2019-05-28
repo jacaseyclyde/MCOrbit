@@ -513,14 +513,14 @@ def orbit_rotator(pos, vel, aop, loan, inc):
     pos : array, float, shape (3, n)
         Cartesian positions of `n` points in orbit
     vel : array, float, shape (3, n)
-        Velocity of test particle at each point, where points
-        correspond to positions in `pos`. Cartesian coordinates
+        Cartesian velocity of test particle at each point, where points
+        correspond to positions in `pos`.
     aop : float
         The argument of pericenter. The angle from the ascending node
-        to pericenter.
+        to pericenter, along the plane of the orbit
     loan : float
         Longitude of the ascending node. The angle between the x axis
-        and the axis at which the orbit intersects the xy-plane.
+        and the line of nodes.
     inc : float
         Inclination. The inclination of vector normal to the orbital
         plane relative to the z axis.
@@ -551,8 +551,8 @@ def orbit_rotator(pos, vel, aop, loan, inc):
                        [s_loan, c_loan, 0],
                        [0, 0, 1]])
 
-    T_mat = r_aop @ r_inc @ r_loan
-    pos, vel = T_mat.T @ pos, T_mat.T @ vel
+    T_mat = r_loan @ r_inc @ r_aop
+    pos, vel = T_mat @ pos, T_mat @ vel
     return pos, vel
 
 
