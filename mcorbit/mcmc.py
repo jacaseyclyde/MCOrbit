@@ -35,6 +35,8 @@ import os
 import numpy as np
 import emcee
 
+from sklearn.cluster import MeanShift
+
 
 def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
                nwalkers=500, nmax=10000, burn=1000,
@@ -96,7 +98,23 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     pos_max = pspace[:, 1]
     prange = pos_max - pos_min
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
-    cov = np.cov(data, rowvar=False)
+
+    # Calculate a covariance matrix for fitting. The covariance for the
+    # whole dataset is unreliable and unrealistic (it's calculation
+    # assumes a single generating point near the mean, rather than the
+    # generating function we are considering). Instead, we will use
+    # clustering to calculate a more "typical" covariance at any given
+    # point along the orbit.
+    # To cluster our data properly, we first normalize each axis to
+    # [-1, 1]. We use a MeanShift clustering algorithm for bandwidth
+    # 0.125, which is roughly typical for the normalized data
+    ms = MeanShift(bandwidth=.125).fit(((data - np.min(data, axis=0))
+                                        / (np.max(data, axis=0)
+                                        - np.min(data, axis=0))) * 2 - 1)
+
+    # we then take our covariance to be the mean cov of the clusters
+    cov = np.mean([np.cov(data[ms.labels_ == k], rowvar=False)
+                   for k in np.unique(ms.labels_)], axis=0)
 
     # Set up backe end for walker position saving
     # note that this requires h5py and emcee 3.x
