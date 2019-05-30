@@ -70,7 +70,8 @@ def ln_like(data, model, cov):
         prob += multivariate_normal.pdf(data, mean=model_pt, cov=cov,
                                         allow_singular=True)
 
-    # normalize over the number of points in the model.
+    # normalize over the sum of probabilities in the model
+    # (effectively averages model point probabilities for a data point)
     prob /= len(model)
 
     # this suppresses a runtime warning we expect for log(0)
@@ -132,7 +133,7 @@ def ln_prior(theta, space):
 
         l_cons = np.sqrt(l_cons)
 
-    V_eff_r = orbits.V_eff(np.linspace(theta[-2], theta[-1]), l_cons)
+    V_eff_r = orbits.V_eff(np.linspace(theta[-2], theta[-1], num=100), l_cons)
     if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
         return -np.inf, l_cons
 
@@ -142,14 +143,14 @@ def ln_prior(theta, space):
     if V_p != V_a:
         return -np.inf, l_cons
 
-    # check for stable orbit endpoints
-    if (orbits.V_eff_grad(theta[-2], l_cons) == 0
-        and orbits.V_eff(theta[-2] - 0.01, l_cons) < V_p):
-        return -np.inf, l_cons
-
-    if (orbits.V_eff_grad(theta[-1], l_cons) == 0
-        and orbits.V_eff(theta[-1] + 0.01, l_cons) < V_a):
-        return -np.inf, l_cons
+#    # check for stable orbit endpoints
+#    if (orbits.V_eff_grad(theta[-2], l_cons) == 0
+#        and orbits.V_eff(theta[-2] - 0.01, l_cons) < V_p):
+#        return -np.inf, l_cons
+#
+#    if (orbits.V_eff_grad(theta[-1], l_cons) == 0
+#        and orbits.V_eff(theta[-1] + 0.01, l_cons) < V_a):
+#        return -np.inf, l_cons
 
     return np.log(prior), l_cons
 
@@ -213,9 +214,7 @@ def ln_prob(theta, data, space, cov, pos_ang):
 if __name__ == '__main__':
     # code profiling tasks
     # create theta
-    r0 = .9413703833253498
-    l_cons = .0001237035540755403
-    theta = (34., 43., 37., r0, l_cons)
+    theta = (0., 80., -150., 1.6, 1.6)
 
     # load data
     import os
@@ -232,7 +231,7 @@ if __name__ == '__main__':
     # mask out contents of maskfile as well as low intensity noise
     mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.fits'))
+                                               'HNC3_2.mask.south.fits'))
     mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
     cube = cube.with_mask(mask)
 
@@ -253,7 +252,17 @@ if __name__ == '__main__':
     nonnan = ~np.isnan(data_pts[:, 2])
     data = data_pts[nonnan]
 
-    # covaraince matrix
     cov = np.cov(data, rowvar=False)
 
-    ln_like(data, orbits.model(theta), cov)
+#    p_aop = [-180, 180.]  # argument of periapsis
+#    p_loan = [-180., 180.]  # longitude of ascending node
+#    p_inc = [-180., 180.]  # inclination
+#    p_rp = [0, 10]  # starting radial distance
+#    p_ra = [0, 10]  # ang. mom.
+#    pspace = np.array([p_aop,
+#                       p_loan,
+#                       p_inc,
+#                       p_rp,
+#                       p_ra], dtype=np.float64)
+#
+#    lnlike, lnprior = ln_prob(theta, data, pspace, cov, (0, 90))
