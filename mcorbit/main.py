@@ -745,13 +745,13 @@ def main(pool, args):
                                                '..', 'dat', 'HNC3_2.fits'),
                          maskfile=os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.south.fits'))
+                                               'HNC3_2.mask.fits'))
     vmin = hnc3_2.spectral_axis.min().value
     vmax = hnc3_2.spectral_axis.max().value
     logging.info("Mask complete.")
 
     try:
-        pos_ang = np.load('pos_ang.south.npy')
+        pos_ang = np.load('pos_ang.npy')
 
         cube = hnc3_2.with_spectral_unit(u.Hz, velocity_convention='radio')
         m0 = cube.moment0()
@@ -768,7 +768,7 @@ def main(pool, args):
     except FileNotFoundError:
         logging.info("Making position angles")
         pos_ang, f = pa_transform(hnc3_2)
-        np.save('pos_ang.south.npy', pos_ang)
+        np.save('pos_ang.npy', pos_ang)
 
     wheredata = np.where(pos_ang.any(axis=0))
     min_pos_ang = np.min(wheredata)
@@ -863,9 +863,9 @@ def main(pool, args):
     if args.SAMPLE or args.CORNER:
         # set up priors and do MCMC. angular momentum bounds are based on
         # the maximum radius
-        p_aop = [-90., 90.]  # argument of periapsis
-        p_loan = [90., 270.]  # longitude of ascending node
-        p_inc = [90., 270.]  # inclination
+        p_aop = [0., 360.]  # argument of periapsis
+        p_loan = [0., 360]  # longitude of ascending node
+        p_inc = [0., 360.]  # inclination
         p_rp = [r_p_lb, r_p_ub]  # starting radial distance
         p_ra = [r_a_lb, r_a_ub]  # ang. mom.
         pspace = np.array([p_aop,
