@@ -155,7 +155,7 @@ def ln_prior(theta, space):
     return np.log(prior), l_cons
 
 
-def ln_prob(theta, data, space, cov, pos_ang):
+def ln_prob(theta, data, space, cov, pos_ang, data_min, data_scale):
     """Calculates P(data|model)
 
     Calculates the natural log of the Bayesian probability that the
@@ -204,8 +204,10 @@ def ln_prob(theta, data, space, cov, pos_ang):
                      c.radial_velocity.value]).T
 
     wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))[0]
+    model = model[wheretheta]
+    model = (model - data_min) * data_scale * 2 - 1
 
-    lnlike = ln_like(data, model[wheretheta], cov)
+    lnlike = ln_like(data, model, cov)
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior
@@ -252,7 +254,34 @@ if __name__ == '__main__':
     nonnan = ~np.isnan(data_pts[:, 2])
     data = data_pts[nonnan]
 
-    cov = np.cov(data, rowvar=False)
+    import matplotlib as mpl
+    mpl.use('Qt5Agg')
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    from itertools import cycle
+
+    from sklearn.cluster import MeanShift
+
+    scale_data = ((data - np.min(data, axis=0))
+                  / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
+    ms = MeanShift(bandwidth=.125).fit(scale_data)
+
+    fig = plt.figure()
+    plt.clf()
+    ax = fig.add_subplot(111, projection='3d')
+
+    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
+    for k, col in zip(range(len(np.unique(ms.labels_))), colors):
+        my_members = ms.labels_ == k
+        cluster_center = ms.cluster_centers_[k]
+        ax.scatter(scale_data[my_members, 0],
+                   scale_data[my_members, 1],
+                   scale_data[my_members, 2], col + '.')
+    plt.title('Estimated number of clusters: %d' % len(np.unique(ms.labels_)))
+    plt.show()
+
+    cov = np.mean([np.cov(scale_data[ms.labels_ == k], rowvar=False)
+                   for k in np.unique(ms.labels_)], axis=0)
 
 #    p_aop = [-180, 180.]  # argument of periapsis
 #    p_loan = [-180., 180.]  # longitude of ascending node

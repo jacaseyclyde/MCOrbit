@@ -108,12 +108,14 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     # To cluster our data properly, we first normalize each axis to
     # [-1, 1]. We use a MeanShift clustering algorithm for bandwidth
     # 0.125, which is roughly typical for the normalized data
-    ms = MeanShift(bandwidth=.125).fit(((data - np.min(data, axis=0))
-                                        / (np.max(data, axis=0)
-                                        - np.min(data, axis=0))) * 2 - 1)
+    data_min = np.min(data, axis=0)
+    data_scale = 1. / (np.max(data, axis=0) - data_min)
+    scale_data = ((data - np.min(data, axis=0))
+                  / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
+    ms = MeanShift(bandwidth=.125).fit(scale_data)
 
     # we then take our covariance to be the mean cov of the clusters
-    cov = np.mean([np.cov(data[ms.labels_ == k], rowvar=False)
+    cov = np.mean([np.cov(scale_data[ms.labels_ == k], rowvar=False)
                    for k in np.unique(ms.labels_)], axis=0)
 
     # Set up backe end for walker position saving
@@ -129,8 +131,9 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
             sys.exit(0)
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
-                                        args=[data, pspace, cov,
-                                              pos_ang_lim], pool=pool,
+                                        args=[scale_data, pspace, cov,
+                                              pos_ang_lim,
+                                              data_min, data_scale], pool=pool,
                                         backend=backend)
 
         # initial burn-in. this appears to be necessary to avoid

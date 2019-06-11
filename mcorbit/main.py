@@ -275,9 +275,10 @@ def plot_model(cube, prefix, params, theta_min, theta_max, label=None):
     wheretheta = np.where((theta >= theta_min) * (theta <= theta_max))[0]
 
     model = np.array([ra.tolist(), dec.tolist()]).T[wheretheta]
-    theta, model = np.transpose(sorted(zip(theta[wheretheta], model)))
+    model = model[np.argsort(theta[wheretheta])]
     ra = [point[0] for point in model]
     dec = [point[1] for point in model]
+
 
     # add Sgr A*
     f.show_markers(GCRA, GCDEC, layer='sgra', label='Sgr A*',
@@ -315,11 +316,11 @@ def pa_model(params, f, theta_min, theta_max):
         orbit = (ones * r_p * u.pc,
                  ones * 0. * u.pc / u.yr,
                  np.linspace(0., 2. * np.pi, 360) * u.rad,
-                 np.sqrt((orbits.mass(r_p) / (r_p ** 3))) * u.rad / u.yr)
+                 ones * np.sqrt((orbits.mass(r_p)
+                                 / (r_p ** 3))) * u.rad / u.yr)
         pos, vel = orbits.polar_to_cartesian(*orbit)
 
         pos, vel = orbits.orbit_rotator(pos, vel, aop, loan, inc)
-        vel *= -1
         c = orbits.sky_coords(pos, vel)
     else:
         l_cons = (2 * r_p * r_a * (r_a * orbits.mass(r_p)
@@ -349,8 +350,10 @@ def pa_model(params, f, theta_min, theta_max):
     theta[whereminus] = theta[whereminus] - 270
 
     wheretheta = np.where((theta >= theta_min) * (theta <= theta_max))[0]
+    theta = theta[wheretheta]
+    vel = vel[wheretheta]
 
-    return np.transpose(sorted(zip(theta[wheretheta], vel[wheretheta])))
+    return np.sort(theta), vel[np.argsort(theta)]
 
 
 # %%
@@ -522,7 +525,7 @@ def corner_plot(samples, prange, fit, args):
     fig = corner.corner(samples,
                         labels=["$\\omega$", "$\\Omega$",
                                 "$i$", "$r_p$", "$r_a$"],
-                        quantiles=[.0014, .0227, .1587, .8414, .9773, .9987],
+                        quantiles=[.1587, .8414],
                         truths=fit)
 
     fig.set_size_inches(12, 12)
@@ -573,7 +576,7 @@ def main(pool, args):
 #    logging.getLogger("aplpy.core").setLevel(logging.WARNING)
     logging.info("Starting analysis.")
 
-    if args.PLOT:
+    if args.PLOTLINES:
         # load, plot, and garbage collect all tracers
         # HNC 3-2
         hnc3_2 = import_data(cubefile=os.path.join(os.path.dirname(__file__),
@@ -774,7 +777,7 @@ def main(pool, args):
     min_pos_ang = np.min(wheredata)
     max_pos_ang = np.max(wheredata)
 
-    if args.PLOT:
+    if args.CORNER:
         # plot masked moments of HNC 3-2 and position angle plot
         plot_moment(hnc3_2, moment=0, prefix='HNC3_2_masked',
                     title="Integrated emission, HNC 3-2, masked")
@@ -787,11 +790,12 @@ def main(pool, args):
                 title="HNC 3-2, masked")
 
         # Plot Martin 2012 model
-        martin_model = (90., 90., 30., 1.6, 1.6)
-        plot_model(hnc3_2, 'HNC3_2_Martin', min_pos_ang, max_pos_ang,
-                   params=martin_model,
+        rc = 1.6
+        martin_model = (0., 80., 30. + 180., rc, rc)
+        plot_model(hnc3_2, 'HNC3_2_Martin', params=martin_model,
+                   theta_min=0., theta_max=360.,
                    label="Martin et al. 2012")
-        martin_pa = pa_model(martin_model, f, min_pos_ang, max_pos_ang)
+        martin_pa = pa_model(martin_model, f, 0., 360.)
         pa_plot(pos_ang, [vmin, vmax], model=martin_pa, prefix='HNC3_2_Martin',
                 label="Martin et al. 2012")
 
@@ -894,8 +898,13 @@ def main(pool, args):
     if args.PLOT or args.CORNER:
         logging.info("Analyzing MCMC data")
         tau = sampler.get_autocorr_time(tol=0)
-        burnin = int(2 * np.max(tau))
-        thin = int(.5 * np.min(tau))
+        try:
+            burnin = int(2 * np.max(tau))
+            thin = int(.5 * np.min(tau))
+        except ValueError:
+            print("Longer chain needed!")
+            burnin = 1000
+            thin = 200
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
 
         # analyze the walker data
@@ -912,8 +921,13 @@ def main(pool, args):
         # print the best parameters found and plot the fit
         logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
                      "r_per: {3}, r_ap: {4}".format(*pbest))
+        ptest = (220.,
+                 270.,
+                 200.,
+                 0.7,
+                 2.)  # (30, 135, 215, 2, 4.5)
 
-        corner_plot(samples, pspace, pbest, args)
+        corner_plot(samples, pspace, ptest, args)
 
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pbest.csv'), pbest)
 
@@ -923,13 +937,14 @@ def main(pool, args):
         print("r_per: {0:.2f} + {1:.2f} - {2:.2f}".format(*r_per))
         print("r_ap: {0:.2f} + {1:.2f} - {2:.2f}".format(*r_ap))
 
-        ptest = (35., 135., 35. + 180., 2., 4.5)  # (30, 135, 215, 2, 4.5)
+        e = 0.01
+#        1.6 * ((1 + e) / (1 - e))
         label = 'Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, ' \
-                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*pbest)
-        prefix = 'HNC3_2_fit_{0}_{1}_{2}_{3}_{4}'.format(*pbest)
-        plot_model(hnc3_2, prefix, pbest,
+                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*ptest)
+        prefix = 'HNC3_2_fit'  # '_{0}_{1}_{2}_{3}_{4}'.format(*pbest)
+        plot_model(hnc3_2, prefix, ptest,
                    min_pos_ang, max_pos_ang, label=label)
-        model = pa_model(pbest, f, min_pos_ang, max_pos_ang)
+        model = pa_model(ptest, f, 0., 360.)
         pa_plot(pos_ang, [vmin, vmax], model=model, prefix=prefix, label=label)
 #        from tqdm import tqdm
 #        aop_range = np.linspace(-40, 70, num=5)
@@ -998,6 +1013,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--sample', dest='SAMPLE',
                         action='store_true', default=False)
     PARSER.add_argument('--plot', dest='PLOT',
+                        action='store_true', default=False)
+    PARSER.add_argument('--plot-lines', dest='PLOTLINES',
                         action='store_true', default=False)
     PARSER.add_argument('--Veff', dest='VEFF',
                         action='store_true', default=False)
