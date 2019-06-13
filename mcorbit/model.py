@@ -113,13 +113,13 @@ def ln_prior(theta, space):
         pmax = max(space[i])
 
         if theta[i] < pmin or theta[i] > pmax:
-            return -np.inf, 0
+            return -np.inf
         else:
             prior *= (1. / (pmax - pmin))
 
     # ensure periapsis is periapsis
     if theta[-2] > theta[-1]:
-        return -np.inf, 0
+        return -np.inf
 
 #    if theta[-1] == theta[-2]:
 #        l_cons = np.sqrt(orbits.mass(theta[-1]) * theta[-1])
