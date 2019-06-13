@@ -363,6 +363,21 @@ def angular_momentum(r1, r2):
     return (r1 * np.sqrt(2 * (E - potential(r1))))
 
 
+def ellipse(rp, ra):
+    a = (rp + ra) / 2
+    e = (ra - rp) / (ra + rp)
+
+
+    theta = np.linspace(0, 2 * np.pi, num=360)
+    r = a * (1 - e ** 2) / (1 + e * np.cos(theta))
+
+    theta_dot = np.sqrt(mass(np.mean(r))  * (1 + e * np.cos(theta)) / r)
+    r_dot = r * theta_dot * e * np.sin(theta) / (1 + e * np.cos(theta))
+
+    return(r * u.pc, r_dot * u.pc / u.yr,
+           theta * u.rad, theta_dot * u.rad / u.yr)
+
+
 def orbit(r0, l_cons):
     """Generates orbits.
 
@@ -602,7 +617,8 @@ def model(theta, l_cons, coords=False):
     aop, loan, inc, rp, ra = theta
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
-        pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
+#        pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
+        pos, vel = polar_to_cartesian(*ellipse(rp, ra))
 
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
@@ -1133,11 +1149,7 @@ def orbits_test():
 
 
 if __name__ == '__main__':
-    r1 = 2.
-    r2 = 2.5
-    l_cons = angular_momentum(r1, 2.00000000000000000000001)
-    print(l_cons)
-
+    ellipse(0.5, 10.)
 #    t0 = time.time()
 #    orb = orbit(r1, l_cons)
 #    t1 = time.time()

@@ -867,9 +867,9 @@ def main(pool, args):
     if args.SAMPLE or args.CORNER:
         # set up priors and do MCMC. angular momentum bounds are based on
         # the maximum radius
-        p_aop = [-90., 90.]  # argument of periapsis
-        p_loan = [90., 270.]  # longitude of ascending node
-        p_inc = [90., 270.]  # inclination
+        p_aop = [0., 360.]  # argument of periapsis
+        p_loan = [0., 360.]  # longitude of ascending node
+        p_inc = [0., 360.]  # inclination
         p_rp = [r_p_lb, r_p_ub]  # starting radial distance
         p_ra = [r_a_lb, r_a_ub]  # ang. mom.
         pspace = np.array([p_aop,
@@ -921,13 +921,16 @@ def main(pool, args):
         # print the best parameters found and plot the fit
         logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
                      "r_per: {3}, r_ap: {4}".format(*pbest))
+        # full: ~(270, 90, 205, 2, 6.5)
+        # north: ~(220, 80, 160, 0.8, 1.6)
+        # south: ~(0, 80, 210, 1.3, 6.5)
         ptest = (220.,
-                 270.,
-                 200.,
-                 0.7,
-                 2.)  # (30, 135, 215, 2, 4.5)
+                 80.,
+                 150.,
+                 1.6,
+                 1.8)  # (30, 135, 215, 2, 4.5)
 
-        corner_plot(samples, pspace, ptest, args)
+        corner_plot(samples, pspace, pbest, args)
 
         np.savetxt(os.path.join(OUTPATH, STAMP, 'pbest.csv'), pbest)
 
@@ -940,11 +943,11 @@ def main(pool, args):
         e = 0.01
 #        1.6 * ((1 + e) / (1 - e))
         label = 'Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, ' \
-                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*ptest)
+                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*pbest)
         prefix = 'HNC3_2_fit'  # '_{0}_{1}_{2}_{3}_{4}'.format(*pbest)
-        plot_model(hnc3_2, prefix, ptest,
+        plot_model(hnc3_2, prefix, pbest,
                    min_pos_ang, max_pos_ang, label=label)
-        model = pa_model(ptest, f, 0., 360.)
+        model = pa_model(pbest, f, 0., 360.)
         pa_plot(pos_ang, [vmin, vmax], model=model, prefix=prefix, label=label)
 #        from tqdm import tqdm
 #        aop_range = np.linspace(-40, 70, num=5)
