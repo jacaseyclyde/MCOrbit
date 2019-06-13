@@ -603,7 +603,7 @@ def sky_coords(pos, vel):
 # =============================================================================
 # The model function
 # =============================================================================
-def model(theta, l_cons, coords=False):
+def model(theta, coords=False):
     """Model generator.
 
     Generates model orbits around Sgr A*, as seen from the FK5
