@@ -242,7 +242,7 @@ def plot_model(cube, prefix, params, theta_min, theta_max, label=None):
         l_cons = (2 * r_p * r_a * (r_a * orbits.mass(r_p)
                   - r_p * orbits.mass(r_a))) / ((r_a ** 2) - (r_p ** 2))
         l_cons = np.sqrt(l_cons)
-        c = orbits.model(params, l_cons, coords=True)
+        c = orbits.model(params, coords=True)
 
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
@@ -326,7 +326,7 @@ def pa_model(params, f, theta_min, theta_max):
         l_cons = (2 * r_p * r_a * (r_a * orbits.mass(r_p)
                   - r_p * orbits.mass(r_a))) / ((r_a ** 2) - (r_p ** 2))
         l_cons = np.sqrt(l_cons)
-        c = orbits.model(params, l_cons, coords=True)
+        c = orbits.model(params, coords=True)
 
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
@@ -828,7 +828,7 @@ def main(pool, args):
         # use lower bounds on peri/apoapsis to set lower bound on angular
         # momentum
         r_p_lb = np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
-        r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+        r_a_lb = 0.5 * np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
 
         # our upper bound on the radius is determined by the position of
         # the furthest local maximum
@@ -869,7 +869,7 @@ def main(pool, args):
         # the maximum radius
         p_aop = [0., 360.]  # argument of periapsis
         p_loan = [0., 360.]  # longitude of ascending node
-        p_inc = [0., 360.]  # inclination
+        p_inc = [90., 270.]  # inclination
         p_rp = [r_p_lb, r_p_ub]  # starting radial distance
         p_ra = [r_a_lb, r_a_ub]  # ang. mom.
         pspace = np.array([p_aop,
@@ -897,14 +897,15 @@ def main(pool, args):
 
     if args.PLOT or args.CORNER:
         logging.info("Analyzing MCMC data")
-        tau = sampler.get_autocorr_time(tol=0)
         try:
-            burnin = int(2 * np.max(tau))
-            thin = int(.5 * np.min(tau))
-        except ValueError:
+            tau = sampler.get_autocorr_time()
+        except Exception as e:
             print("Longer chain needed!")
-            burnin = 1000
-            thin = 200
+            tau = sampler.get_autocorr_time(tol=0)
+
+        burnin = int(2 * np.max(tau))
+        thin = int(.5 * np.min(tau))
+
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
 
         # analyze the walker data
@@ -926,9 +927,9 @@ def main(pool, args):
         # south: ~(0, 80, 210, 1.3, 6.5)
         ptest = (220.,
                  80.,
-                 150.,
-                 1.6,
-                 1.8)  # (30, 135, 215, 2, 4.5)
+                 160.,
+                 0.8,
+                 2.)  # (30, 135, 215, 2, 4.5)
 
         corner_plot(samples, pspace, pbest, args)
 
