@@ -204,8 +204,7 @@ def ln_prob(theta, data, weights, lprobscale,
     theta[whereplus] = theta[whereplus] + 90
     theta[whereminus] = theta[whereminus] - 270
 
-    model = np.array([ra.value, dec.value,
-                     c.radial_velocity.value]).T
+    model = np.array([ra, dec, c.radial_velocity.value]).T
 
     wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))[0]
     model = model[wheretheta]
