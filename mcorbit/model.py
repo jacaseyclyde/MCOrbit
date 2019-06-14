@@ -77,9 +77,7 @@ def ln_like(data, weights, lprobscale, model, cov):
     lprob -= np.log(len(model))
     lprob += lprobscale
 
-    # this suppresses a runtime warning we expect for log(0)
-    with np.errstate(divide='ignore'):
-        return np.sum(lprob * weights)
+    return np.sum(lprob * weights)
 
 
 def ln_prior(theta, space):
