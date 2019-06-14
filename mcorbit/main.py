@@ -177,18 +177,15 @@ def ppv_pts(cube):
     """
     # pylint: disable=C0103
     # get the moment 1 map and positions, then convert to an array of ppv data
-    m1 = cube.moment1()
-    dd, rr = m1.spatial_coordinate_map
-    c = SkyCoord(ra=rr, dec=dd, radial_velocity=m1, frame='fk5')
-    c = c.ravel()
-
-    # convert to numpy array and remove nan velocities
-    data_pts = np.array([c.ra.rad,
-                         c.dec.rad,
-                         c.radial_velocity.value]).T
+    dd, rr = cube.spatial_coordinate_map
+    data_pts = np.vstack([rr.to(u.rad).value.ravel(),
+                          dd.to(u.rad).value.ravel(),
+                          cube.moment1().value.ravel(),
+                          cube.moment0().value.ravel()]).T
 
     # strip out anything that's not an actual data point
-    data_pts = data_pts[_notnan(data_pts[:, 2])]
+    data_pts = data_pts[~np.isnan(data_pts[:, 2])]
+    data_pts[:, 3] /= np.sum(data_pts[:, 3])
 
     return data_pts
 
@@ -812,6 +809,9 @@ def main(pool, args):
             ind = np.random.choice(range(n_pts), size=int(args.SUB * n_pts),
                                    replace=False)
             data = data[ind]
+            
+            # renormalize emission weights
+            data[:, 3] /= np.sum(data[:, 3])
 
         # find the lower bounds on the peri and apoapses using apparent sep
         m1 = hnc3_2.moment1()

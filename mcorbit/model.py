@@ -31,7 +31,7 @@ import astropy.units as u
 from mcorbit import orbits
 
 
-def ln_like(data, model, cov):
+def ln_like(data, weights, lprobscale, model, cov):
     """Calculates the ln probability of a dataset generating from a model.
 
     Calculates the probability that the dataset associated with instances
@@ -61,22 +61,25 @@ def ln_like(data, model, cov):
     # entire model, or in this case a sum of the discretized model
     # points. the log likelihood is then a sum of the natural logs of
     # all data points.
-    prob = np.zeros(len(data))
+    lprob = -np.inf * np.ones(len(data))
 
     # first we sum the model prob for each data pt over all model pts
     # taking every other model point to improve computation time
     model = model[::2, :]
     for model_pt in model:
-        prob += multivariate_normal.pdf(data, mean=model_pt, cov=cov,
-                                        allow_singular=True)
+        lprob = np.logaddexp(lprob, multivariate_normal.logpdf(data,
+                                                               mean=model_pt,
+                                                               cov=cov,
+                                                               allow_singular=True))
 
     # normalize over the sum of probabilities in the model
     # (effectively averages model point probabilities for a data point)
-    prob /= len(model)
+    lprob -= np.log(len(model))
+    lprob += lprobscale
 
     # this suppresses a runtime warning we expect for log(0)
     with np.errstate(divide='ignore'):
-        return np.sum(np.log(prob))
+        return np.sum(lprob * weights)
 
 
 def ln_prior(theta, space):
@@ -155,7 +158,8 @@ def ln_prior(theta, space):
     return np.log(prior)  # , l_cons
 
 
-def ln_prob(theta, data, space, cov, pos_ang, data_min, data_scale):
+def ln_prob(theta, data, weights, lprobscale,
+            space, cov, pos_ang, data_min, data_scale):
     """Calculates P(data|model)
 
     Calculates the natural log of the Bayesian probability that the
@@ -200,14 +204,14 @@ def ln_prob(theta, data, space, cov, pos_ang, data_min, data_scale):
     theta[whereplus] = theta[whereplus] + 90
     theta[whereminus] = theta[whereminus] - 270
 
-    model = np.array([ra, dec,
+    model = np.array([ra.value, dec.value,
                      c.radial_velocity.value]).T
 
     wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))[0]
     model = model[wheretheta]
     model = (model - data_min) * data_scale * 2 - 1
 
-    lnlike = ln_like(data, model, cov)
+    lnlike = ln_like(data, weights, lprobscale, model, cov)
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior
@@ -220,7 +224,6 @@ if __name__ == '__main__':
 
     # load data
     import os
-    import astropy.units as u
     from spectral_cube import SpectralCube, LazyMask
     from astropy.coordinates import SkyCoord
 

@@ -98,6 +98,9 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     pos_max = pspace[:, 1]
     prange = pos_max - pos_min
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
+    
+    # separate data and emission weights
+    data, weights = np.hsplit(data, [3])
 
     # Calculate a covariance matrix for fitting. The covariance for the
     # whole dataset is unreliable and unrealistic (it's calculation
@@ -108,16 +111,17 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     # To cluster our data properly, we first normalize each axis to
     # [-1, 1]. We use a MeanShift clustering algorithm for bandwidth
     # 0.125, which is roughly typical for the normalized data
-    data_min = np.min(data, axis=0)
-    data_scale = 1. / (np.max(data, axis=0) - data_min)
-    scale_data = ((data - np.min(data, axis=0))
-                  / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
-    ms = MeanShift(bandwidth=.125).fit(scale_data)
+    dmin = np.min(data, axis=0)
+    dscale = 1. / (np.max(data, axis=0) - dmin)
+    data = (data - dmin) * dscale * 2 - 1
+    ms = MeanShift(bandwidth=.125).fit(data)
 
     # we then take our covariance to be the mean cov of the clusters
-    cov = np.mean([np.cov(scale_data[ms.labels_ == k], rowvar=False)
+    cov = np.mean([np.cov(data[ms.labels_ == k], rowvar=False)
                    for k in np.unique(ms.labels_)], axis=0)
 
+    lprobscale = 0.5 * (3 * np.log(2 * np.pi) + np.log(np.linalg.det(cov)))
+    
     # Set up backe end for walker position saving
     # note that this requires h5py and emcee 3.x
     backend = emcee.backends.HDFBackend(os.path.join(outpath, 'chain.h5'))
@@ -131,10 +135,10 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
             sys.exit(0)
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
-                                        args=[scale_data, pspace, cov,
-                                              pos_ang_lim,
-                                              data_min, data_scale], pool=pool,
-                                        backend=backend)
+                                        args=[data, weights, lprobscale,
+                                              pspace, cov, pos_ang_lim,
+                                              dmin, dscale],
+                                        pool=pool, backend=backend)
 
         # initial burn-in. this appears to be necessary to avoid
         # initial NaN issues
