@@ -74,6 +74,7 @@ np.set_printoptions(precision=2, threshold=np.inf)
 
 STAMP = ""  # datetime.datetime.now().strftime('%Y%m%d%H%M%S')
 OUTPATH = os.path.join(os.path.dirname(__file__), '..', 'out')
+PLOT_DIR = 'plots'
 
 FIGSIZE = (10, 10)
 FILETYPE = 'pdf'
@@ -239,7 +240,7 @@ def plot_model(cube, prefix, params, theta_min, theta_max, label=None):
         l_cons = (2 * r_p * r_a * (r_a * orbits.mass(r_p)
                   - r_p * orbits.mass(r_a))) / ((r_a ** 2) - (r_p ** 2))
         l_cons = np.sqrt(l_cons)
-        c = orbits.model(params, coords=True)
+        c = orbits.model(params, l_cons, coords=True)
 
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
@@ -299,7 +300,7 @@ def plot_model(cube, prefix, params, theta_min, theta_max, label=None):
     f.colorbar.set_axis_label_text('Integrated Flux $(\\mathrm{Hz}\\,'
                                    '\\mathrm{Jy}/\\mathrm{beam})$')
 
-    f.savefig(os.path.join(OUTPATH, STAMP, 'HNC3_2_fit', '{0}_model.{1}'
+    f.savefig(os.path.join(OUTPATH, STAMP, PLOT_DIR, '{0}_model.{1}'
                            .format(prefix, FILETYPE)))
     f.close()
     return
@@ -323,7 +324,7 @@ def pa_model(params, f, theta_min, theta_max):
         l_cons = (2 * r_p * r_a * (r_a * orbits.mass(r_p)
                   - r_p * orbits.mass(r_a))) / ((r_a ** 2) - (r_p ** 2))
         l_cons = np.sqrt(l_cons)
-        c = orbits.model(params, coords=True)
+        c = orbits.model(params, l_cons, coords=True)
 
     ra = c.ra.to(u.deg).value
     dec = c.dec.to(u.deg).value
@@ -419,7 +420,7 @@ def pa_plot(pos_ang, vlim, model=None, title=None, prefix=None,
 
 #    plt.colorbar().set_label('Integrated Flux $(\\mathrm{Hz}\\,'
 #                             '\\mathrm{Jy}/\\mathrm{beam})$')
-    plt.savefig(os.path.join(OUTPATH, STAMP, 'HNC3_2_fit', '{0}_pa.{1}'
+    plt.savefig(os.path.join(OUTPATH, STAMP, PLOT_DIR, '{0}_pa.{1}'
                              .format(prefix, FILETYPE)), bbox_inches='tight')
 
 
@@ -522,12 +523,15 @@ def corner_plot(samples, prange, fit, args):
     fig = corner.corner(samples,
                         labels=["$\\omega$", "$\\Omega$",
                                 "$i$", "$r_p$", "$r_a$"],
-                        quantiles=[.1587, .8414],
-                        truths=fit)
+#                        quantiles=[.1587, .8414],
+#                        quantiles=[0.02275, 0.97725],
+                        quantiles=[0.0013, 0.9987],
+                        truths=fit,
+                        range=prange)
 
     fig.set_size_inches(12, 12)
 
-    plt.savefig(os.path.join(OUTPATH, STAMP, 'corner.pdf'
+    plt.savefig(os.path.join(OUTPATH, STAMP, PLOT_DIR, 'corner.pdf'
                              .format(args.WALKERS, args.NMAX)),
                 bbox_inches='tight')
 
@@ -563,7 +567,7 @@ def main(pool, args):
 
     # create output folder
     try:
-        os.makedirs(os.path.join(OUTPATH, STAMP))
+        os.makedirs(os.path.join(OUTPATH, STAMP, PLOT_DIR))
     except FileExistsError:
         pass
 
@@ -745,13 +749,13 @@ def main(pool, args):
                                                '..', 'dat', 'HNC3_2.fits'),
                          maskfile=os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.north.fits'))
+                                               'HNC3_2.mask.fits'))
     vmin = hnc3_2.spectral_axis.min().value
     vmax = hnc3_2.spectral_axis.max().value
     logging.info("Mask complete.")
 
     try:
-        pos_ang = np.load('pos_ang.north.npy')
+        pos_ang = np.load('pos_ang.npy')
 
         cube = hnc3_2.with_spectral_unit(u.Hz, velocity_convention='radio')
         m0 = cube.moment0()
@@ -768,13 +772,13 @@ def main(pool, args):
     except FileNotFoundError:
         logging.info("Making position angles")
         pos_ang, f = pa_transform(hnc3_2)
-        np.save('pos_ang.north.npy', pos_ang)
+        np.save('pos_ang.npy', pos_ang)
 
     wheredata = np.where(pos_ang.any(axis=0))
     min_pos_ang = np.min(wheredata)
     max_pos_ang = np.max(wheredata)
 
-    if args.CORNER:
+    if args.PLOT:
         # plot masked moments of HNC 3-2 and position angle plot
         plot_moment(hnc3_2, moment=0, prefix='HNC3_2_masked',
                     title="Integrated emission, HNC 3-2, masked")
@@ -809,7 +813,7 @@ def main(pool, args):
             ind = np.random.choice(range(n_pts), size=int(args.SUB * n_pts),
                                    replace=False)
             data = data[ind]
-            
+
             # renormalize emission weights
             data[:, 3] /= np.sum(data[:, 3])
 
@@ -899,12 +903,17 @@ def main(pool, args):
         logging.info("Analyzing MCMC data")
         try:
             tau = sampler.get_autocorr_time()
-        except Exception as e:
+        except Exception:
             print("Longer chain needed!")
             tau = sampler.get_autocorr_time(tol=0)
 
-        burnin = int(2 * np.max(tau))
-        thin = int(.5 * np.min(tau))
+        try:
+            burnin = int(2 * np.max(tau))
+            thin = int(.5 * np.min(tau))
+        except ValueError:
+            print("Much longer chain needed.")
+            burnin = 1000
+            thin = 200
 
         samples = sampler.get_chain(discard=burnin, flat=True, thin=thin)
 
@@ -912,28 +921,32 @@ def main(pool, args):
         aop, loan, inc, r_per, r_ap = map(lambda v: (v[1], v[2]-v[1],
                                                      v[1]-v[0]),
                                           zip(*np.quantile(samples,
-                                                             [.1587, .5, .8414],
-                                                             axis=0)))
-        pbest = (aop[0],
-                 loan[0],
-                 inc[0],
-                 r_per[0],
-                 r_ap[0])
+#                                                           [.1587, .5, .8414],
+#                                                           [0.02275, .5, 0.97725],
+                                                           [0.0013, .5, 0.9987],
+                                                           axis=0)))
+        pbest = np.array([aop, loan, inc, r_per, r_ap]).T
         # print the best parameters found and plot the fit
         logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
-                     "r_per: {3}, r_ap: {4}".format(*pbest))
+                     "r_per: {3}, r_ap: {4}".format(*pbest[0]))
         # full: ~(270, 90, 205, 2, 6.5)
         # north: ~(220, 80, 160, 0.8, 1.6)
         # south: ~(0, 80, 210, 1.3, 6.5)
-        ptest = (220.,
-                 80.,
-                 160.,
-                 0.8,
-                 2.)  # (30, 135, 215, 2, 4.5)
+        ptest = (150.,
+                 310.,
+                 120.,
+                 .75,
+                 1.)  # (30, 135, 215, 2, 4.5)
 
-        corner_plot(samples, pspace, pbest, args)
+#        ptest = (aop[0],
+#                 10.,
+#                 inc[0],
+#                 r_per[0],
+#                 r_ap[0])
 
-        np.savetxt(os.path.join(OUTPATH, STAMP, 'pbest.csv'), pbest)
+        corner_plot(samples, pspace, pbest[0], args)
+
+        np.savetxt(os.path.join(OUTPATH, STAMP, PLOT_DIR, 'pbest.csv'), pbest)
 
         print("aop: {0:.2f} + {1:.2f} - {2:.2f}".format(*aop))
         print("loan: {0:.2f} + {1:.2f} - {2:.2f}".format(*loan))
@@ -944,46 +957,12 @@ def main(pool, args):
         e = 0.01
 #        1.6 * ((1 + e) / (1 - e))
         label = 'Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, ' \
-                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*pbest)
-        prefix = 'HNC3_2_fit'  # '_{0}_{1}_{2}_{3}_{4}'.format(*pbest)
-        plot_model(hnc3_2, prefix, pbest,
-                   min_pos_ang, max_pos_ang, label=label)
-        model = pa_model(pbest, f, 0., 360.)
+                'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)'.format(*ptest)
+        prefix = 'HNC3_2_fit'  # '_{0}_{1}_{2}_{3}_{4}'.format(*pbest)ptest
+        plot_model(hnc3_2, prefix, pbest[0],
+                   0., 360., label=label)
+        model = pa_model(pbest[0], f, 0., 360.)
         pa_plot(pos_ang, [vmin, vmax], model=model, prefix=prefix, label=label)
-#        from tqdm import tqdm
-#        aop_range = np.linspace(-40, 70, num=5)
-#        loan_range = np.linspace(130, 220, num=5)
-#        inc_range = np.linspace(190, 230, num=5)
-#        r_p_range = np.linspace(r_p_lb, r_p_ub, num=5)
-#        r_a_range = np.linspace(r_a_lb, r_a_ub, num=5)
-#        with tqdm(total=len(aop_range) * len(loan_range)
-#                  * len(inc_range) * len(r_p_range) * len(r_a_range)) as pbar:
-#            for aop in aop_range:
-#                for loan in loan_range:
-#                    for inc in inc_range:
-#                        for r_p in r_p_range:
-#                            for r_a in r_a_range:
-#                                ptest = (aop, loan, inc, r_p, r_a)
-#
-#                                label = 'Best Fit ($\\omega = {0:.2f}, ' \
-#                                        '\\Omega = {1:.2f}, ' \
-#                                        'i = {2:.2f}, ' \
-#                                        'r_p = {3:.2f}, r_a = {4:.2f}$)' \
-#                                        .format(*ptest)
-#
-#                                prefix = 'HNC3_2_fit_{0}_{1}_{2}_{3}_{4}' \
-#                                         .format(int(aop), int(loan),
-#                                                 int(inc), r_p, r_a)
-#                                plot_model(hnc3_2,
-#                                           prefix, ptest,
-#                                           min_pos_ang, max_pos_ang,
-#                                           label=label)
-#                                model = pa_model(ptest, f,
-#                                                 min_pos_ang, max_pos_ang)
-#                                pa_plot(pos_ang, [vmin, vmax], model=model,
-#                                        prefix=prefix,
-#                                        label=label)
-#                                pbar.update(1)
         logging.info("Analysis complete")
 
     # bit of cleanup

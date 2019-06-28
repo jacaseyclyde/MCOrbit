@@ -114,13 +114,13 @@ def ln_prior(theta, space):
         pmax = max(space[i])
 
         if theta[i] < pmin or theta[i] > pmax:
-            return -np.inf
+            return -np.inf, 0.
         else:
             prior *= (1. / (pmax - pmin))
 
     # ensure periapsis is periapsis
     if theta[-2] > theta[-1]:
-        return -np.inf
+        return -np.inf, 0.
 
 #    if theta[-1] == theta[-2]:
 #        l_cons = np.sqrt(orbits.mass(theta[-1]) * theta[-1])
@@ -153,7 +153,7 @@ def ln_prior(theta, space):
 #        and orbits.V_eff(theta[-1] + 0.01, l_cons) < V_a):
 #        return -np.inf, l_cons
 
-    return np.log(prior)  # , l_cons
+    return np.log(prior), l_cons
 
 
 def ln_prob(theta, data, weights, lprobscale,
@@ -181,10 +181,10 @@ def ln_prob(theta, data, weights, lprobscale,
 
     """
     # first check the prior
-    lnprior = ln_prior(theta, space)
+    lnprior, l_cons = ln_prior(theta, space)
     if not np.isfinite(lnprior):
         return -np.inf, -np.inf
-    c = orbits.model(theta, coords=True)
+    c = orbits.model(theta, l_cons, coords=True)
 
     ra = c.ra.rad
     dec = c.dec.rad
@@ -233,7 +233,7 @@ if __name__ == '__main__':
     # mask out contents of maskfile as well as low intensity noise
     mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.south.fits'))
+                                               'HNC3_2.mask.fits'))
     mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
     cube = cube.with_mask(mask)
 
@@ -260,28 +260,34 @@ if __name__ == '__main__':
     from mpl_toolkits.mplot3d import Axes3D
     from itertools import cycle
 
-    from sklearn.cluster import MeanShift
+    from sklearn.cluster import MeanShift, KMeans
 
     scale_data = ((data - np.min(data, axis=0))
                   / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
-    ms = MeanShift(bandwidth=.125).fit(scale_data)
+    km = KMeans(n_clusters=16).fit(scale_data)
 
-    fig = plt.figure()
+    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
+
+    fig = plt.figure(figsize=(12, 12))
     plt.clf()
     ax = fig.add_subplot(111, projection='3d')
 
-    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
-    for k, col in zip(range(len(np.unique(ms.labels_))), colors):
-        my_members = ms.labels_ == k
-        cluster_center = ms.cluster_centers_[k]
-        ax.scatter(scale_data[my_members, 0],
-                   scale_data[my_members, 1],
-                   scale_data[my_members, 2], col + '.')
-    plt.title('Estimated number of clusters: %d' % len(np.unique(ms.labels_)))
+    for k, col in zip(range(len(np.unique(km.labels_))), colors):
+        my_members = km.labels_ == k
+        cluster_center = km.cluster_centers_[k]
+        ax.scatter(c.ra.degree[nonnan][my_members],
+                   c.dec.degree[nonnan][my_members],
+                   data[my_members, 2], col + '.')
+#    plt.title('KMeans Clustering')
+    ax.set_xlabel('Right Ascension [deg]', labelpad=20)
+    ax.set_ylabel('Declination [deg]', labelpad=20)
+    ax.set_zlabel('Line of Sight Velocity [km/s]')
+
+    plt.savefig('kmeans.pdf')
     plt.show()
 
-    cov = np.mean([np.cov(scale_data[ms.labels_ == k], rowvar=False)
-                   for k in np.unique(ms.labels_)], axis=0)
+    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
+                   for k in np.unique(km.labels_)], axis=0)
 
 #    p_aop = [-180, 180.]  # argument of periapsis
 #    p_loan = [-180., 180.]  # longitude of ascending node
