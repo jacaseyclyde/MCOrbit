@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH --partition=nodes
-#SBATCH -n 504
+#SBATCH -n 252
 #SBATCH --time=30-00:00:00
 #SBATCH --job-name=cnd_apsides
 #SBATCH --output=cnd_apsides.out

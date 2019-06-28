@@ -34,6 +34,7 @@ import time
 import numpy as np
 
 from scipy.interpolate import interp1d
+from scipy.integrate import quad
 
 import astropy.units as u
 from astropy.constants import G
@@ -73,6 +74,7 @@ M_DAT = np.genfromtxt(os.path.join(os.path.dirname(__file__),
                                    '..', 'dat',
                                    'enclosed_mass_distribution.txt'))
 M_DIST = Angle(M_DAT[:, 0], unit=u.arcsec).to(u.rad) * D_SGR_A.to(u.pc) / u.rad
+MAX_DIST = np.max(M_DIST.value)
 
 
 
@@ -203,7 +205,8 @@ def potential(dist):
         units are given, parsecs are assumed.
 
     Returns
-    -------
+    -------    - Figure out what's wrong with this calculation (too small initially)
+
     float
         The gravitational potential at the given distance, in units of
         pc^2 / yr^2.
@@ -221,7 +224,9 @@ def potential(dist):
     with warnings.catch_warnings(record=True):
         if dist == np.inf:
             return 0.  # * (u.pc ** 2) / (u.yr ** 2)
-        return - mass(dist) / dist
+#        return - mass(dist) / dist
+        integ = quad(lambda x: mass_grad(x) / x, dist, MAX_DIST)[0]
+        return (- mass(MAX_DIST) / MAX_DIST) - integ
 
 
 def potential_grad(dist):
@@ -249,7 +254,7 @@ def potential_grad(dist):
     if dist == 0:
         return np.inf  # * u.pc / (u.yr ** 2)
 
-    return (-1. / dist) * (potential(dist) + mass_grad(dist))
+    return mass(dist) / dist ** 2
 
 
 @np.vectorize
@@ -329,10 +334,6 @@ def angular_momentum(r1, r2):
     float
         Angular momentum per unit mass, in units of pc^2 / yr
 
-    Todo
-    ----
-    - Figure out what's wrong with this calculation (too small initially)
-
     """
     try:
         if r1.unit != u.pc:
@@ -355,12 +356,27 @@ def angular_momentum(r1, r2):
 #        r2 = r2 * u.pc
 
     if r1 == r2:
-        return (r1 * np.sqrt(-1 * potential(r1) - mass_grad(r1)))
+        return (r1 * np.sqrt(-1 * potential(r1)))
 
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
 
     return (r1 * np.sqrt(2 * (E - potential(r1))))
+
+
+def ellipse(rp, ra):
+    a = (rp + ra) / 2
+    e = (ra - rp) / (ra + rp)
+
+
+    theta = np.linspace(0, 2 * np.pi, num=360)
+    r = a * (1 - e ** 2) / (1 + e * np.cos(theta))
+
+    theta_dot = np.sqrt(mass(np.mean(r))  * (1 + e * np.cos(theta)) / r)
+    r_dot = r * theta_dot * e * np.sin(theta) / (1 + e * np.cos(theta))
+
+    return(r * u.pc, r_dot * u.pc / u.yr,
+           theta * u.rad, theta_dot * u.rad / u.yr)
 
 
 def orbit(r0, l_cons):
@@ -781,10 +797,10 @@ def plot_V_eff(r1, r2, l_cons, post=None):
     plt.xlabel("$r [\\mathrm{pc}]$")
     plt.ylabel("$V_{\\mathrm{eff}} [\\mathrm{pc}^{2} / \\mathrm{yr}^{2}]$")
     plt.grid()
-    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
-                             'V_eff_r{0}.pdf'.format("_" + post if post
-                                                     is not None else ""))
-    plt.savefig(save_path, bbox_inches='tight')
+#    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+#                             'V_eff_r{0}.pdf'.format("_" + post if post
+#                                                     is not None else ""))
+#    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     return V
@@ -969,7 +985,7 @@ def analysis():
 
 
 
-    plot_orbit(r0, l_cons)
+#    plot_orbit(r0, l_cons)
 
 #    plt.figure(figsize=FIGSIZE)
 #    plt.plot(rr, [-potential_grad(r).value for r in rr], 'k-',
@@ -1039,23 +1055,41 @@ def analysis():
 #    plt.grid()
 #    plt.show()
 
-#    V_eff_grad_r = V_eff_grad(rr, ll)
-#
-#    fig = plt.figure(figsize=FIGSIZE)
-#    ax = fig.gca(projection='3d')
-#    ax.plot_surface(rr, ll, V_eff_grad_r)
+    rr1, rr2 = np.meshgrid(np.linspace(0.25, 10., num=50),
+                           np.linspace(0.25, 10., num=50), indexing='ij')
+
+    ll = angular_momentum(rr1, rr2)
+
+    rr, ll = np.meshgrid(np.linspace(0.25, 10., num=50),
+                         np.linspace(np.nanmin(ll),
+                                     np.nanmax(ll), num=50),
+                         indexing='ij')
+
+    V_eff_r = V_eff(rr, ll)
+    V_eff_r[V_eff_r > 0] = np.nan
+#    V_eff_r[V_eff_r < -1.4e-8] = np.nan
+
+    fig = plt.figure(figsize=FIGSIZE)
+    ax = fig.gca(projection='3d')
+    ax.plot_surface(rr, ll, V_eff_r)
 #    ax.plot_surface(rr, ll, np.zeros_like(V_eff_grad_r),
 #                    color='orange')
-#    ax.set_xlabel('$r$')
-#    ax.set_ylabel('$l$')
-#    ax.set_zlabel('$\\nabla V_{eff}$')
+    ax.set_xlabel('$r$ [pc]', labelpad=20)
+    ax.set_ylabel('$l$ [$\\mathrm{pc}^{2} \\mathrm{yr}^{-1}$]', labelpad=20)
+    ax.set_zlabel('$V_{eff} [\\mathrm{pc}^{2} \\mathrm{yr}^{-2}$]',
+                  labelpad=20)
 #    ax.set_xlim3d(left=6.)
-#    ax.set_zlim3d(bottom=-1e-9, top=1e-9)
-#    plt.title("$\\nabla V_{eff}$ vs. $r, l$")
-#    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
-#                             'V_eff_grad.pdf')
-#    plt.savefig(save_path, bbox_inches='tight')
-#    plt.show()
+    ax.set_zlim3d(top=0.)
+#    ax.set_zlim3d(top=np.max(V_eff_r), bottom=np.min(V_eff_r))
+    plt.title("$V_{eff}$ vs. $r, l$")
+    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+                             'V_eff.pdf')
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.show()
+
+    return V_eff_r
+
+#    V_eff_large = V_eff(rr1, )
 
 #    plot_orbit(r1, l_min)
 
@@ -1133,11 +1167,9 @@ def orbits_test():
 
 
 if __name__ == '__main__':
-    r1 = 2.
-    r2 = 2.5
-    l_cons = angular_momentum(r1, 2.00000000000000000000001)
-    print(l_cons)
-
+    pass
+#    ellipse(0.5, 10.)
+#    V_eff_r = analysis()
 #    t0 = time.time()
 #    orb = orbit(r1, l_cons)
 #    t1 = time.time()

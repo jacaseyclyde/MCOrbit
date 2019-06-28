@@ -31,7 +31,7 @@ import astropy.units as u
 from mcorbit import orbits
 
 
-def ln_like(data, model, cov):
+def ln_like(data, weights, lprobscale, model, cov):
     """Calculates the ln probability of a dataset generating from a model.
 
     Calculates the probability that the dataset associated with instances
@@ -61,22 +61,23 @@ def ln_like(data, model, cov):
     # entire model, or in this case a sum of the discretized model
     # points. the log likelihood is then a sum of the natural logs of
     # all data points.
-    prob = np.zeros(len(data))
+    lprob = -np.inf * np.ones(len(data))
 
     # first we sum the model prob for each data pt over all model pts
     # taking every other model point to improve computation time
     model = model[::2, :]
     for model_pt in model:
-        prob += multivariate_normal.pdf(data, mean=model_pt, cov=cov,
-                                        allow_singular=True)
+        lprob = np.logaddexp(lprob, multivariate_normal.logpdf(data,
+                                                               mean=model_pt,
+                                                               cov=cov,
+                                                               allow_singular=True))
 
     # normalize over the sum of probabilities in the model
     # (effectively averages model point probabilities for a data point)
-    prob /= len(model)
+    lprob -= np.log(len(model))
+    lprob += lprobscale
 
-    # this suppresses a runtime warning we expect for log(0)
-    with np.errstate(divide='ignore'):
-        return np.sum(np.log(prob))
+    return np.sum(lprob * weights)
 
 
 def ln_prior(theta, space):
@@ -113,35 +114,35 @@ def ln_prior(theta, space):
         pmax = max(space[i])
 
         if theta[i] < pmin or theta[i] > pmax:
-            return -np.inf, 0
+            return -np.inf, 0.
         else:
             prior *= (1. / (pmax - pmin))
 
     # ensure periapsis is periapsis
     if theta[-2] > theta[-1]:
-        return -np.inf, 0
+        return -np.inf, 0.
 
-    if theta[-1] == theta[-2]:
-        l_cons = np.sqrt(orbits.mass(theta[-1]) * theta[-1])
-    else:
-        l_cons = (2 * theta[-2] * theta[-1]
-                  * (theta[-1] * orbits.mass(theta[-2])
-                  - theta[-2] * orbits.mass(theta[-1]))) / ((theta[-1] ** 2)
-                                                            - (theta[-2] ** 2))
-        if l_cons < 0.:
-            return -np.inf, 0
-
-        l_cons = np.sqrt(l_cons)
-
-    V_eff_r = orbits.V_eff(np.linspace(theta[-2], theta[-1], num=100), l_cons)
-    if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
-        return -np.inf, l_cons
-
-    V_p = orbits.V_eff(theta[-2], l_cons)
-    V_a = orbits.V_eff(theta[-1], l_cons)
-    # V_eff must be equal at orbit endpoints
-    if V_p != V_a:
-        return -np.inf, l_cons
+#    if theta[-1] == theta[-2]:
+#        l_cons = np.sqrt(orbits.mass(theta[-1]) * theta[-1])
+#    else:
+#        l_cons = (2 * theta[-2] * theta[-1]
+#                  * (theta[-1] * orbits.mass(theta[-2])
+#                  - theta[-2] * orbits.mass(theta[-1]))) / ((theta[-1] ** 2)
+#                                                            - (theta[-2] ** 2))
+#        if l_cons < 0.:
+#            return -np.inf, 0
+#
+#        l_cons = np.sqrt(l_cons)
+#
+#    V_eff_r = orbits.V_eff(np.linspace(theta[-2], theta[-1], num=100), l_cons)
+#    if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
+#        return -np.inf, l_cons
+#
+#    V_p = orbits.V_eff(theta[-2], l_cons)
+#    V_a = orbits.V_eff(theta[-1], l_cons)
+#    # V_eff must be equal at orbit endpoints
+#    if V_p != V_a:
+#        return -np.inf, l_cons
 
 #    # check for stable orbit endpoints
 #    if (orbits.V_eff_grad(theta[-2], l_cons) == 0
@@ -155,7 +156,8 @@ def ln_prior(theta, space):
     return np.log(prior), l_cons
 
 
-def ln_prob(theta, data, space, cov, pos_ang, data_min, data_scale):
+def ln_prob(theta, data, weights, lprobscale,
+            space, cov, pos_ang, data_min, data_scale):
     """Calculates P(data|model)
 
     Calculates the natural log of the Bayesian probability that the
@@ -200,14 +202,13 @@ def ln_prob(theta, data, space, cov, pos_ang, data_min, data_scale):
     theta[whereplus] = theta[whereplus] + 90
     theta[whereminus] = theta[whereminus] - 270
 
-    model = np.array([ra, dec,
-                     c.radial_velocity.value]).T
+    model = np.array([ra, dec, c.radial_velocity.value]).T
 
     wheretheta = np.where((theta >= pos_ang[0]) * (theta <= pos_ang[1]))[0]
     model = model[wheretheta]
     model = (model - data_min) * data_scale * 2 - 1
 
-    lnlike = ln_like(data, model, cov)
+    lnlike = ln_like(data, weights, lprobscale, model, cov)
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior
@@ -220,7 +221,6 @@ if __name__ == '__main__':
 
     # load data
     import os
-    import astropy.units as u
     from spectral_cube import SpectralCube, LazyMask
     from astropy.coordinates import SkyCoord
 
@@ -233,7 +233,7 @@ if __name__ == '__main__':
     # mask out contents of maskfile as well as low intensity noise
     mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.south.fits'))
+                                               'HNC3_2.mask.fits'))
     mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
     cube = cube.with_mask(mask)
 
@@ -260,28 +260,34 @@ if __name__ == '__main__':
     from mpl_toolkits.mplot3d import Axes3D
     from itertools import cycle
 
-    from sklearn.cluster import MeanShift
+    from sklearn.cluster import MeanShift, KMeans
 
     scale_data = ((data - np.min(data, axis=0))
                   / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
-    ms = MeanShift(bandwidth=.125).fit(scale_data)
+    km = KMeans(n_clusters=16).fit(scale_data)
 
-    fig = plt.figure()
+    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
+
+    fig = plt.figure(figsize=(12, 12))
     plt.clf()
     ax = fig.add_subplot(111, projection='3d')
 
-    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
-    for k, col in zip(range(len(np.unique(ms.labels_))), colors):
-        my_members = ms.labels_ == k
-        cluster_center = ms.cluster_centers_[k]
-        ax.scatter(scale_data[my_members, 0],
-                   scale_data[my_members, 1],
-                   scale_data[my_members, 2], col + '.')
-    plt.title('Estimated number of clusters: %d' % len(np.unique(ms.labels_)))
+    for k, col in zip(range(len(np.unique(km.labels_))), colors):
+        my_members = km.labels_ == k
+        cluster_center = km.cluster_centers_[k]
+        ax.scatter(c.ra.degree[nonnan][my_members],
+                   c.dec.degree[nonnan][my_members],
+                   data[my_members, 2], col + '.')
+#    plt.title('KMeans Clustering')
+    ax.set_xlabel('Right Ascension [deg]', labelpad=20)
+    ax.set_ylabel('Declination [deg]', labelpad=20)
+    ax.set_zlabel('Line of Sight Velocity [km/s]')
+
+    plt.savefig('kmeans.pdf')
     plt.show()
 
-    cov = np.mean([np.cov(scale_data[ms.labels_ == k], rowvar=False)
-                   for k in np.unique(ms.labels_)], axis=0)
+    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
+                   for k in np.unique(km.labels_)], axis=0)
 
 #    p_aop = [-180, 180.]  # argument of periapsis
 #    p_loan = [-180., 180.]  # longitude of ascending node

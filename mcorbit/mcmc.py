@@ -98,6 +98,9 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     pos_max = pspace[:, 1]
     prange = pos_max - pos_min
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
+    
+    # separate data and emission weights
+    data, weights = np.hsplit(data, [3])
 
     # Calculate a covariance matrix for fitting. The covariance for the
     # whole dataset is unreliable and unrealistic (it's calculation
@@ -118,6 +121,8 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
                    for k in np.unique(km.labels_)], axis=0)
 
+    lprobscale = 0.5 * (3 * np.log(2 * np.pi) + np.log(np.linalg.det(cov)))
+    
     # Set up backe end for walker position saving
     # note that this requires h5py and emcee 3.x
     backend = emcee.backends.HDFBackend(os.path.join(outpath, 'chain.h5'))
@@ -131,10 +136,10 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
             sys.exit(0)
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
-                                        args=[scale_data, pspace, cov,
-                                              pos_ang_lim,
-                                              data_min, data_scale], pool=pool,
-                                        backend=backend)
+                                        args=[data, weights, lprobscale,
+                                              pspace, cov, pos_ang_lim,
+                                              dmin, dscale],
+                                        pool=pool, backend=backend)
 
         # initial burn-in. this appears to be necessary to avoid
         # initial NaN issues
@@ -152,8 +157,6 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
 
             # check convergence
             tau = sampler.get_autocorr_time(tol=0)
-            if not mpi:
-                print(tau)
 
             converged = np.all(tau * 100 < sampler.iteration)
             converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
