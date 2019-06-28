@@ -35,7 +35,7 @@ import os
 import numpy as np
 import emcee
 
-from sklearn.cluster import MeanShift
+from sklearn.cluster import KMeans
 
 
 def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
@@ -112,11 +112,11 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     data_scale = 1. / (np.max(data, axis=0) - data_min)
     scale_data = ((data - np.min(data, axis=0))
                   / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
-    ms = MeanShift(bandwidth=.125).fit(scale_data)
+    km = KMeans(n_clusters=16).fit(scale_data)
 
     # we then take our covariance to be the mean cov of the clusters
-    cov = np.mean([np.cov(scale_data[ms.labels_ == k], rowvar=False)
-                   for k in np.unique(ms.labels_)], axis=0)
+    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
+                   for k in np.unique(km.labels_)], axis=0)
 
     # Set up backe end for walker position saving
     # note that this requires h5py and emcee 3.x
