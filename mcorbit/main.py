@@ -827,13 +827,13 @@ def main(pool, args):
 
         # use lower bounds on peri/apoapsis to set lower bound on angular
         # momentum
-        r_p_lb = np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
-        r_a_lb = np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+        r_p_lb = 0.5 * np.min(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
+        r_a_lb = 0.25 * np.max(np.sqrt(offset[:, 0] ** 2 + offset[:, 1] ** 2))
 
         # our upper bound on the radius is determined by the position of
         # the furthest local maximum
-        r_p_ub = 2. * r_a_lb
-        r_a_ub = 10.  # * r_p_ub
+        r_p_ub = 2.  # * r_a_lb
+        r_a_ub = 5.  # * r_p_ub
 
     if args.VEFF:
         lmin = (r_p_lb * r_a_lb * np.sqrt((2 * (orbits.potential(r_a_lb)
@@ -867,11 +867,11 @@ def main(pool, args):
     if args.SAMPLE or args.CORNER:
         # set up priors and do MCMC. angular momentum bounds are based on
         # the maximum radius
-        p_aop = [0., 360.]  # argument of periapsis
-        p_loan = [0., 360]  # longitude of ascending node
-        p_inc = [0., 360.]  # inclination
-        p_rp = [r_p_lb, r_p_ub]  # starting radial distance
-        p_ra = [r_a_lb, r_a_ub]  # ang. mom.
+        p_aop = [30., 50.]  # argument of periapsis
+        p_loan = [80., 100.]  # longitude of ascending node
+        p_inc = [140., 160.]  # inclination
+        p_rp = [.4, .8]  # periapsis distance
+        p_ra = [1.4, 2.]  # apoapsis distance
         pspace = np.array([p_aop,
                            p_loan,
                            p_inc,
