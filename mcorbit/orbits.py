@@ -226,7 +226,7 @@ def potential(dist):
             return 0.  # * (u.pc ** 2) / (u.yr ** 2)
 #        return - mass(dist) / dist
         integ = quad(lambda x: mass_grad(x) / x, dist, MAX_DIST)[0]
-        return (- mass(MAX_DIST) / MAX_DIST) - integ
+        return (- mass(dist) / dist) - integ
 
 
 def potential_grad(dist):
@@ -254,7 +254,7 @@ def potential_grad(dist):
     if dist == 0:
         return np.inf  # * u.pc / (u.yr ** 2)
 
-    return mass(dist) / dist ** 2
+    return mass(dist) / (dist ** 2)
 
 
 @np.vectorize
@@ -280,8 +280,7 @@ def V_eff(r, l):
     """
     if r == 0. or r ** 2 == 0:
         return np.inf
-    V_l = (l ** 2) / (2 * (r ** 2))
-    return V_l + potential(r)
+    return (l ** 2) / (2 * (r ** 2)) + potential(r)
 
 
 @np.vectorize
@@ -434,25 +433,7 @@ def orbit(r0, l_cons):
         ang_half = ang_pos[-1] + 0.5 * TSTEP * ang_vel[-1]
 
         # kick
-        # check that the particle's original energy is greater than the
-        # effective potential energy. If necessary, introduce a
-        # correction
-        #
-        # IDEAS FOR MORE CONSISTENT CORRECTION/COMPUTATION
-        # 1. At each step, calculate the difference between the
-        #    conserved energy and the energy at the current location.
-        #    Keep the sign of the velocity and update as needed
-        # 2. Try kick-drift-kick formulation
-        # 3. Update using energies dierectly, as well as the gradient
-        #    of Veff
-        # 4. Check the current calculations for the acceleration for
-        #    simplifications that can be made (esp. any that reduce the
-        #    order or range of the order of calculations performed).
-        if E <= V_eff(r_half, l_cons):
-            r_vel_new = -1. * TSTEP * V_eff_grad(r_half, l_cons)
-        else:
-            r_vel_new = r_vel[-1] - TSTEP * V_eff_grad(r_half, l_cons)
-
+        r_vel_new = r_vel[-1] - TSTEP * V_eff_grad(r_half, l_cons)
         ang_vel_new = l_cons / r_half ** 2  # * u.rad / (r_new ** 2)
 
         # second drift
@@ -836,10 +817,10 @@ def plot_V_eff_grad(r1, r2, l_cons, post=None):
     plt.ylabel("$\\nabla V_{\\mathrm{eff}} "
                "[\\mathrm{pc} / \\mathrm{yr}^{2}]$")
     plt.grid()
-    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
-                             'V_eff_grad{0}.pdf'.format("_" + post if post
-                                                        is not None else ""))
-    plt.savefig(save_path, bbox_inches='tight')
+#    save_path = os.path.join(os.path.dirname(__file__), '..', 'out',
+#                             'V_eff_grad{0}.pdf'.format("_" + post if post
+#                                                        is not None else ""))
+#    plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
     return V_grad
@@ -1167,7 +1148,11 @@ def orbits_test():
 
 
 if __name__ == '__main__':
-    pass
+    r1 = 1.8
+    r2 = 2.5
+    l_cons = angular_momentum(r1, r2)
+    plot_V_eff(r1, r2, l_cons)
+    plot_V_eff_grad(r1, r2, l_cons)
 #    ellipse(0.5, 10.)
 #    V_eff_r = analysis()
 #    t0 = time.time()
