@@ -122,37 +122,8 @@ def ln_prior(theta, space):
     if theta[-2] > theta[-1]:
         return -np.inf, 0.
 
-#    if theta[-1] == theta[-2]:
-#        l_cons = np.sqrt(orbits.mass(theta[-1]) * theta[-1])
-#    else:
-#        l_cons = (2 * theta[-2] * theta[-1]
-#                  * (theta[-1] * orbits.mass(theta[-2])
-#                  - theta[-2] * orbits.mass(theta[-1]))) / ((theta[-1] ** 2)
-#                                                            - (theta[-2] ** 2))
-#        if l_cons < 0.:
-#            return -np.inf, 0
-#
-#        l_cons = np.sqrt(l_cons)
-#
-#    V_eff_r = orbits.V_eff(np.linspace(theta[-2], theta[-1], num=100), l_cons)
-#    if np.any(V_eff_r > orbits.V_eff(theta[-2], l_cons)):
-#        return -np.inf, l_cons
-#
-#    V_p = orbits.V_eff(theta[-2], l_cons)
-#    V_a = orbits.V_eff(theta[-1], l_cons)
-#    # V_eff must be equal at orbit endpoints
-#    if V_p != V_a:
-#        return -np.inf, l_cons
-
-#    # check for stable orbit endpoints
-#    if (orbits.V_eff_grad(theta[-2], l_cons) == 0
-#        and orbits.V_eff(theta[-2] - 0.01, l_cons) < V_p):
-#        return -np.inf, l_cons
-#
-#    if (orbits.V_eff_grad(theta[-1], l_cons) == 0
-#        and orbits.V_eff(theta[-1] + 0.01, l_cons) < V_a):
-#        return -np.inf, l_cons
-
+    l_cons = orbits.angular_momentum(theta[-2], theta[-1])
+    
     return np.log(prior), l_cons
 
 

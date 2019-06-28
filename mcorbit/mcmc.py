@@ -136,9 +136,9 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
             sys.exit(0)
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlike,
-                                        args=[data, weights, lprobscale,
+                                        args=[scale_data, weights, lprobscale,
                                               pspace, cov, pos_ang_lim,
-                                              dmin, dscale],
+                                              data_min, data_scale],
                                         pool=pool, backend=backend)
 
         # initial burn-in. this appears to be necessary to avoid
