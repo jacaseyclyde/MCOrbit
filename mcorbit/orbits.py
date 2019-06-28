@@ -618,8 +618,7 @@ def model(theta, l_cons, coords=False):
     aop, loan, inc, rp, ra = theta
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
-#        pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
-        pos, vel = polar_to_cartesian(*ellipse(rp, ra))
+        pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
 
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
