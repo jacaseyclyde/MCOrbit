@@ -892,6 +892,7 @@ def main(pool, args):
                                   nwalkers=args.WALKERS, nmax=args.NMAX,
                                   burn=args.BURN, reset=False, mpi=args.MPI,
                                   outpath=os.path.join(OUTPATH, STAMP))
+        logging.info("Sampling Complete!")
     elif args.PLOT or args.CORNER:
         logging.info("Loading MCMC data")
         pspace = np.loadtxt(os.path.join(OUTPATH, STAMP, 'pspace.csv'))

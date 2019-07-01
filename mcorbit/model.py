@@ -77,7 +77,7 @@ def ln_like(data, weights, lprobscale, model, cov):
     lprob -= np.log(len(model))
     lprob += lprobscale
 
-    return np.sum(lprob * weights)
+    return np.sum(lprob)
 
 
 def ln_prior(theta, space):

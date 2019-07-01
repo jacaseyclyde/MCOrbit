@@ -149,7 +149,7 @@ def mass(dist, interp=M_ENC_INTERP):
     if dist == np.inf:
         return np.inf  # * u.Msun
 
-    return G * np.power(10., interp(dist))  # * u.Msun
+    return G * (10. ** interp(dist))  # * u.Msun
 
 
 def mass_grad(dist, interp=M_GRAD_INTERP):
