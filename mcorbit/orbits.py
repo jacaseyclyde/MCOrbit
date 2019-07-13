@@ -585,7 +585,7 @@ def sky_coords(pos, vel):
 # =============================================================================
 # The model function
 # =============================================================================
-def model(theta, l_cons, coords=False):
+def model(theta, coords=False):
     """Model generator.
 
     Generates model orbits around Sgr A*, as seen from the FK5
@@ -597,6 +597,7 @@ def model(theta, l_cons, coords=False):
 
     """
     aop, loan, inc, rp, ra = theta
+    l_cons = angular_momentum(rp, ra)
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
         pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
@@ -1148,11 +1149,19 @@ def orbits_test():
 
 
 if __name__ == '__main__':
-    r1 = 1.8
-    r2 = 2.5
-    l_cons = angular_momentum(r1, r2)
-    plot_V_eff(r1, r2, l_cons)
-    plot_V_eff_grad(r1, r2, l_cons)
+    r1 = .05
+    r2 = .06
+    r = np.linspace(r1, r2, num=100)
+    fig = plt.figure(figsize=(12, 12))
+    r_range = np.where((M_DIST.value >= r1) & (M_DIST.value <= r2))
+    plt.plot(M_DIST[r_range], M_ENC[r_range], 'k-')
+    plt.plot(r, [M_ENC_INTERP(x) for x in r], 'r--')
+    plt.show()
+#    r1 = 1.8
+#    r2 = 2.5
+#    l_cons = angular_momentum(r1, r2)
+#    plot_V_eff(r1, r2, l_cons)
+#    plot_V_eff_grad(r1, r2, l_cons)
 #    ellipse(0.5, 10.)
 #    V_eff_r = analysis()
 #    t0 = time.time()
