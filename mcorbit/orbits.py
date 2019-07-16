@@ -512,9 +512,7 @@ def orbit(r0, l_cons):
         ang_pos = np.append(ang_pos, ang_new)  # * u.rad
         ang_vel = np.append(ang_vel, ang_vel_new)  # * u.rad / u.yr
 
-        if r_new == 0. or r_new > 10.:
-            break
-
+    ang_pos = ang_pos - ang_pos[r_pos.argmin()]
     return (r_pos * u.pc, r_vel * u.pc / u.yr,
             ang_pos * u.rad, ang_vel * u.rad / u.yr)
 
@@ -667,7 +665,7 @@ def model(theta, coords=False):
     l_cons = angular_momentum(rp, ra)
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
-        pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
+        pos, vel = polar_to_cartesian(*orbit(ra, l_cons))
 
     pos, vel = orbit_rotator(pos, vel, aop, loan, inc)
     c = sky_coords(pos, vel)
