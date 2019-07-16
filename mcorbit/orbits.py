@@ -412,7 +412,7 @@ def angular_momentum(r1, r2, uncertainty=False):
 #        r2 = r2 * u.pc
 
     if r1 == r2:
-        return (r1 * np.sqrt(-1 * potential(r1)))
+        return np.sqrt(r1 * mass(r1))
 
     if uncertainty:
         p_r1_low, p_r1_high = potential(r1, uncertainty=True)
