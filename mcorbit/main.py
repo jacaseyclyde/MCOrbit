@@ -926,7 +926,7 @@ def main(pool, args):
     if args.PLOT or args.CORNER:
         logging.info("Analyzing MCMC data")
         try:
-            tau = sampler.get_autocorr_time(tol=round(10000 / 504))
+            tau = sampler.get_autocorr_time(tol=round(10000 / 200))
         except Exception:
             print("Longer chain needed!")
             tau = sampler.get_autocorr_time(tol=0)
@@ -961,7 +961,7 @@ def main(pool, args):
                                            thin=thin)
 
         if args.TEST:
-            ptest = (aop[1] + 5., loan[1], inc[1] + 10., r_ap[1] - .1, r_ap[1])
+            ptest = (40., loan[1], inc[1] + 10., r_ap[1], r_ap[1])
 
 #            corner_plot(corner_samples, pspace, ptest, args)
 
@@ -986,8 +986,8 @@ def main(pool, args):
                                        r_ap[1] - r_ap[0],
                                        r_ap[2] - r_ap[1])
 
-            label = r'Best Fit (' + aop_label + ', ' + loan_label + ', ' \
-                    + inc_label + ', ' + rp_label + ', ' + ra_label + ')'
+            label = r'Best Fit (' + str(ptest[0]) + ', ' + str(ptest[1]) + ', ' \
+                    + str(ptest[2]) + ', ' + str(ptest[3]) + ', ' + str(ptest[4]) + ')'
             prefix = 'HNC3_2_fit'
             plot_model(hnc3_2, prefix, ptest,
                        0., 360., label=label)
