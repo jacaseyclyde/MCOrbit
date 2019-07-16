@@ -123,7 +123,7 @@ def ln_prior(theta, space):
         return -np.inf, 0.
 
     l_cons = orbits.angular_momentum(theta[-2], theta[-1])
-    
+
     return np.log(prior), l_cons
 
 
@@ -155,7 +155,7 @@ def ln_prob(theta, data, weights, lprobscale,
     lnprior, l_cons = ln_prior(theta, space)
     if not np.isfinite(lnprior):
         return -np.inf, -np.inf
-    c = orbits.model(theta, l_cons, coords=True)
+    c = orbits.model(theta, coords=True)
 
     ra = c.ra.rad
     dec = c.dec.rad
@@ -180,16 +180,19 @@ def ln_prob(theta, data, weights, lprobscale,
     model = (model - data_min) * data_scale * 2 - 1
 
     lnlike = ln_like(data, weights, lprobscale, model, cov)
+    del model
+    del c
     if not np.isfinite(lnlike):
         return lnprior, -np.inf
     return lnprior + lnlike, lnprior
 
 
 if __name__ == '__main__':
-    # code profiling tasks
-    # create theta
-    theta = (0., 80., -150., 1.6, 1.6)
-
+    pass
+#    # code profiling tasks
+#    # create theta
+#    theta = (0., 80., -150., 1.6, 1.6)
+#
     # load data
     import os
     from spectral_cube import SpectralCube, LazyMask
@@ -204,7 +207,7 @@ if __name__ == '__main__':
     # mask out contents of maskfile as well as low intensity noise
     mask_cube = SpectralCube.read(os.path.join(os.path.dirname(__file__),
                                                '..', 'dat',
-                                               'HNC3_2.mask.fits'))
+                                               'HNC3_2.mask.north.fits'))
     mask = (mask_cube == u.Quantity(1)) & (cube > 0.1 * u.Jy / u.beam)
     cube = cube.with_mask(mask)
 
@@ -224,18 +227,20 @@ if __name__ == '__main__':
     # strip out anything that's not an actual data point
     nonnan = ~np.isnan(data_pts[:, 2])
     data = data_pts[nonnan]
-
+#
     import matplotlib as mpl
     mpl.use('Qt5Agg')
     import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
+#    from mpl_toolkits.mplot3d import Axes3D
     from itertools import cycle
 
-    from sklearn.cluster import MeanShift, KMeans
+    from sklearn.cluster import KMeans
+
+    plt.rcParams.update({'font.size': 14})
 
     scale_data = ((data - np.min(data, axis=0))
                   / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
-    km = KMeans(n_clusters=16).fit(scale_data)
+    km = KMeans(n_clusters=24).fit(scale_data)
 
     colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
 
@@ -246,7 +251,7 @@ if __name__ == '__main__':
     for k, col in zip(range(len(np.unique(km.labels_))), colors):
         my_members = km.labels_ == k
         cluster_center = km.cluster_centers_[k]
-        ax.scatter(c.ra.degree[nonnan][my_members],
+        ax.scatter(data[my_members, 0],
                    c.dec.degree[nonnan][my_members],
                    data[my_members, 2], col + '.')
 #    plt.title('KMeans Clustering')
@@ -256,19 +261,19 @@ if __name__ == '__main__':
 
     plt.savefig('kmeans.pdf')
     plt.show()
-
-    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
-                   for k in np.unique(km.labels_)], axis=0)
-
-#    p_aop = [-180, 180.]  # argument of periapsis
-#    p_loan = [-180., 180.]  # longitude of ascending node
-#    p_inc = [-180., 180.]  # inclination
-#    p_rp = [0, 10]  # starting radial distance
-#    p_ra = [0, 10]  # ang. mom.
-#    pspace = np.array([p_aop,
-#                       p_loan,
-#                       p_inc,
-#                       p_rp,
-#                       p_ra], dtype=np.float64)
 #
-#    lnlike, lnprior = ln_prob(theta, data, pspace, cov, (0, 90))
+#    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
+#                   for k in np.unique(km.labels_)], axis=0)
+#
+##    p_aop = [-180, 180.]  # argument of periapsis
+##    p_loan = [-180., 180.]  # longitude of ascending node
+##    p_inc = [-180., 180.]  # inclination
+##    p_rp = [0, 10]  # starting radial distance
+##    p_ra = [0, 10]  # ang. mom.
+##    pspace = np.array([p_aop,
+##                       p_loan,
+##                       p_inc,
+##                       p_rp,
+##                       p_ra], dtype=np.float64)
+##
+##    lnlike, lnprior = ln_prob(theta, data, pspace, cov, (0, 90))

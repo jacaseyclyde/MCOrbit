@@ -35,8 +35,10 @@ import numpy as np
 
 from scipy.interpolate import interp1d
 from scipy.integrate import quad
+from scipy.optimize import approx_fprime
 
 import astropy.units as u
+from astropy import uncertainty as unc
 from astropy.constants import G
 from astropy.coordinates import Galactocentric, FK5, ICRS, Angle
 
@@ -80,9 +82,13 @@ MAX_DIST = np.max(M_DIST.value)
 
 
 ###### CHECK THESE!!!! CRITICAL!!!!!!!!!
-M_ENC = M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
+M_ENC = 10. ** M_DAT[:, 1]  # 10 ** Mdat[:, 1] * u.Msun
+M_ENC_LOWER = 10. ** M_DAT[:, 2]
+M_ENC_UPPER = 10. ** M_DAT[:, 3]
 # Might be better to switch logM to M now instead of in function
 M_GRAD = np.gradient(M_ENC, M_DIST.value)  # * u.Msun / u.pc
+M_GRAD_LOWER = np.gradient(M_ENC_LOWER, M_DIST.value)
+M_GRAD_UPPER = np.gradient(M_ENC_UPPER, M_DIST.value)
 ###### EXTREMELY CRITICAL TO CHECK THE ABOVE. ESPECIALLY GRADIENT!!!!!!
 
 
@@ -99,8 +105,16 @@ M_GRAD = np.gradient(M_ENC, M_DIST.value)  # * u.Msun / u.pc
 
 M_ENC_INTERP = interp1d(M_DIST.value, M_ENC,
                         kind='cubic', fill_value='extrapolate')
+M_ENC_INTERP_LOWER = interp1d(M_DIST.value, M_ENC_LOWER,
+                        kind='cubic', fill_value='extrapolate')
+M_ENC_INTERP_UPPER = interp1d(M_DIST.value, M_ENC_UPPER,
+                        kind='cubic', fill_value='extrapolate')
 M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
                          kind='cubic', fill_value='extrapolate')
+M_GRAD_INTERP_LOWER = interp1d(M_DIST.value, M_GRAD_LOWER,
+                               kind='cubic', fill_value='extrapolate')
+M_GRAD_INTERP_UPPER = interp1d(M_DIST.value, M_GRAD_UPPER,
+                               kind='cubic', fill_value='extrapolate')
 
 
 # =============================================================================
@@ -112,7 +126,7 @@ M_GRAD_INTERP = interp1d(M_DIST.value, M_GRAD,
 # =============================================================================
 # Orbit functions
 # =============================================================================
-def mass(dist, interp=M_ENC_INTERP):
+def mass(dist, uncertainty=False):
     """Finds the interpolated central mass of a spherical distribution.
 
     Calculates the mass contained in a sperical distribution at a given
@@ -149,10 +163,23 @@ def mass(dist, interp=M_ENC_INTERP):
     if dist == np.inf:
         return np.inf  # * u.Msun
 
-    return G * (10. ** interp(dist))  # * u.Msun
+    m_enc = M_ENC_INTERP(dist)
+
+    if uncertainty:
+        std_low = (m_enc - (M_ENC_INTERP_LOWER(dist))) / 3.
+        std_high = ((M_ENC_INTERP_UPPER(dist)) - m_enc) / 3.
+
+        low_bound = unc.normal(center=m_enc*u.Msun,
+                               std=std_low*u.Msun, n_samples=100000)
+        high_bound = unc.normal(center=m_enc*u.Msun,
+                                std=std_high*u.Msun, n_samples=100000)
+        return (G * low_bound * (u.pc ** 3) / (u.Msun * u.yr ** 2),
+                G * high_bound * (u.pc ** 3) / (u.Msun * u.yr ** 2))
+
+    return G * m_enc  # * u.Msun
 
 
-def mass_grad(dist, interp=M_GRAD_INTERP):
+def mass_grad(dist, interp=M_GRAD_INTERP, uncertainty=False):
     """Automates calculation of the mass gradient.
 
     Wrapper function to evaluate the derivative of the non-analytic
@@ -189,10 +216,29 @@ def mass_grad(dist, interp=M_GRAD_INTERP):
     if dist == np.inf:  # * u.pc:
         return 0.  # * u.Msun / u.pc
 
-    return np.log(10.) * mass(dist) * interp(dist)  # * u.pc ** 2 / u.yr ** 2
+#    m_enc = mass(dist, uncertainty=uncertainty)
+#
+#    if uncertainty:
+#        return np.log(10.) * m_enc[0] *
+#
+#    return G * interp(dist)  # * u.pc ** 2 / u.yr ** 2
+    m_grad = M_GRAD_INTERP(dist)
+
+    if uncertainty:
+        std_low = (m_grad - (M_GRAD_INTERP_LOWER(dist))) / 3.
+        std_high = ((M_GRAD_INTERP_UPPER(dist)) - m_grad) / 3.
+
+        low_bound = unc.normal(center=m_grad * u.Msun / u.pc,
+                               std=std_low * u.Msun / u.pc, n_samples=100000)
+        high_bound = unc.normal(center=m_grad * u.Msun / u.pc,
+                                std=std_high * u.Msun / u.pc, n_samples=100000)
+        return (G * low_bound * (u.pc ** 3) / (u.Msun * u.yr ** 2),
+                G * high_bound * (u.pc ** 3) / (u.Msun * u.yr ** 2))
+
+    return G * m_grad  # * u.Msun / u.pc
 
 
-def potential(dist):
+def potential(dist, uncertainty=False):
     """Calculates gravitational potential
 
     Calculates the gravitational potential at a given distance from
@@ -225,11 +271,17 @@ def potential(dist):
         if dist == np.inf:
             return 0.  # * (u.pc ** 2) / (u.yr ** 2)
 #        return - mass(dist) / dist
+
+        m_enc = mass(dist, uncertainty=uncertainty)
+
+        if isinstance(m_enc, tuple):
+            return m_enc[0] / (dist ** 2.), m_enc[1] / (dist ** 2.)
+
         integ = quad(lambda x: mass_grad(x) / x, dist, MAX_DIST)[0]
-        return (- mass(dist) / dist) - integ
+        return (- m_enc / dist) - integ
 
 
-def potential_grad(dist):
+def potential_grad(dist, uncertainty=False):
     """Calculates the gradient of the potential at a point.
 
     Calculates the approximate gradient of the gravitational potential
@@ -254,7 +306,12 @@ def potential_grad(dist):
     if dist == 0:
         return np.inf  # * u.pc / (u.yr ** 2)
 
-    return mass(dist) / (dist ** 2)
+    m_enc = mass(dist, uncertainty=uncertainty)
+
+    if isinstance(m_enc, tuple):
+        return m_enc[0] / (dist ** 2.), m_enc[1] / (dist ** 2.)
+
+    return m_enc / (dist ** 2.)
 
 
 @np.vectorize
@@ -311,7 +368,7 @@ def V_eff_grad(r, l):
 
 
 @np.vectorize
-def angular_momentum(r1, r2):
+def angular_momentum(r1, r2, uncertainty=False):
     """Calculates the angular momentum per unit mass for given apsides.
 
     Calculates the angular momentum per unit mass required for a system
@@ -355,7 +412,21 @@ def angular_momentum(r1, r2):
 #        r2 = r2 * u.pc
 
     if r1 == r2:
-        return (r1 * np.sqrt(-1 * potential(r1)))
+        return np.sqrt(r1 * mass(r1))
+
+    if uncertainty:
+        p_r1_low, p_r1_high = potential(r1, uncertainty=True)
+        p_r2_low, p_r2_high = potential(r2, uncertainty=True)
+
+        E_low = ((((r2 ** 2) * p_r2_low) - ((r1 ** 2) * p_r1_low))
+                 / ((r2 ** 2) - (r1 ** 2)))
+        E_high = ((((r2 ** 2) * p_r2_high) - ((r1 ** 2) * p_r1_high))
+                  / ((r2 ** 2) - (r1 ** 2)))
+
+        l_low = (r1 * np.sqrt(2 * (E_low - p_r1_low)))
+        l_high = (r1 * np.sqrt(2 * (E_high - p_r1_high)))
+
+        return l_low, l_high
 
     E = ((((r2 ** 2) * potential(r2)) - ((r1 ** 2) * potential(r1)))
          / ((r2 ** 2) - (r1 ** 2)))
@@ -408,10 +479,6 @@ def orbit(r0, l_cons):
         period.
 
     """
-    # keeping track of initial particle energy
-    # necessary for some endpoint corrections
-    E = V_eff(r0, l_cons)
-
     # sticking to 2D polar for initial integration since z = 0
     # leaving reminders of the units, but doing calculaions without
     # them to improve efficiency. Units will return at end
@@ -585,7 +652,7 @@ def sky_coords(pos, vel):
 # =============================================================================
 # The model function
 # =============================================================================
-def model(theta, l_cons, coords=False):
+def model(theta, coords=False):
     """Model generator.
 
     Generates model orbits around Sgr A*, as seen from the FK5
@@ -597,6 +664,7 @@ def model(theta, l_cons, coords=False):
 
     """
     aop, loan, inc, rp, ra = theta
+    l_cons = angular_momentum(rp, ra)
     with warnings.catch_warnings():
         warnings.filterwarnings('error')
         pos, vel = polar_to_cartesian(*orbit(rp, l_cons))
@@ -1148,11 +1216,25 @@ def orbits_test():
 
 
 if __name__ == '__main__':
-    r1 = 1.8
-    r2 = 2.5
-    l_cons = angular_momentum(r1, r2)
-    plot_V_eff(r1, r2, l_cons)
-    plot_V_eff_grad(r1, r2, l_cons)
+    r1_test = 2. * u.pc
+    r2_test = 3. * u.pc
+    m_low, m_high = mass(r1_test, uncertainty=True)
+    p_low, p_high = potential_grad(r1_test, uncertainty=True)
+    m_grad_low, m_grad_high = mass_grad(r1_test, uncertainty=True)
+#    l_low, l_high = angular_momentum(r1_test, r2_test, uncertainty=True)
+#    r1 = .05
+#    r2 = .06
+#    r = np.linspace(r1, r2, num=100)
+#    fig = plt.figure(figsize=(12, 12))
+#    r_range = np.where((M_DIST.value >= r1) & (M_DIST.value <= r2))
+#    plt.plot(M_DIST[r_range], M_ENC[r_range], 'k-')
+#    plt.plot(r, [M_ENC_INTERP(x) for x in r], 'r--')
+#    plt.show()
+#    r1 = 1.8
+#    r2 = 2.5
+#    l_cons = angular_momentum(r1, r2)
+#    plot_V_eff(r1, r2, l_cons)
+#    plot_V_eff_grad(r1, r2, l_cons)
 #    ellipse(0.5, 10.)
 #    V_eff_r = analysis()
 #    t0 = time.time()

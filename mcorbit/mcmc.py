@@ -98,7 +98,7 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     pos_max = pspace[:, 1]
     prange = pos_max - pos_min
     pos = [pos_min + prange * np.random.rand(ndim) for i in range(nwalkers)]
-    
+
     # separate data and emission weights
     data, weights = np.hsplit(data, [3])
 
@@ -115,14 +115,15 @@ def fit_orbits(pool, lnlike, data, pspace, pos_ang_lim,
     data_scale = 1. / (np.max(data, axis=0) - data_min)
     scale_data = ((data - np.min(data, axis=0))
                   / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
-    km = KMeans(n_clusters=16).fit(scale_data)
-
-    # we then take our covariance to be the mean cov of the clusters
-    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
-                   for k in np.unique(km.labels_)], axis=0)
+#    km = KMeans(n_clusters=16).fit(scale_data)
+#
+#    # we then take our covariance to be the mean cov of the clusters
+#    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
+#                   for k in np.unique(km.labels_)], axis=0)
+    cov = np.cov(scale_data, rowvar=False)
 
     lprobscale = 0.5 * (3 * np.log(2 * np.pi) + np.log(np.linalg.det(cov)))
-    
+
     # Set up backe end for walker position saving
     # note that this requires h5py and emcee 3.x
     backend = emcee.backends.HDFBackend(os.path.join(outpath, 'chain.h5'))
