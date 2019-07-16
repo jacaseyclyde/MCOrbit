@@ -64,6 +64,8 @@ import matplotlib as mpl
 mpl.use('Agg')
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+
 import corner
 import aplpy
 
@@ -384,7 +386,13 @@ def pa_plot(pos_ang, vlim, model=None, title=None, prefix=None,
                aspect='auto', cmap='jet', origin='upper')
 
     if model is not None:
-        plt.plot(model[0], model[1], label=label, color='white', ls='--', lw=1)
+        x, y = model
+
+        pos = np.where(np.abs(np.diff(y)) >= 10.)[0]+1
+        x = np.insert(x, pos, np.nan)
+        y = np.insert(y, pos, np.nan)
+
+        plt.plot(x, y, label=label, color='white', ls='--', lw=1)
         plt.legend(prop={'size': 10})
 
     plt.xlabel('Position Angle East of North [Degrees]')
@@ -501,20 +509,33 @@ def corner_plot(samples, prange, fit, args):
                         labels=["$\\omega$", "$\\Omega$",
                                 "$i$", "$r_p$", "$r_a$"],
 #                        quantiles=[.1587, .8414],
-                        quantiles=[0.02275, 0.97725],
+                        quantiles=[0.0013, .1587,
+                                   .8414, 0.9987],
+                        qcolors=['b', 'r', 'r', 'b'],
+#                        qlabels=[r"$1 \sigma$", r"$3 \sigma"],
 #                        quantiles=[0.025, 0.975],
 #                        quantiles=[0.0013, 0.9987],
                         truths=fit,
+                        truth_color='#4682b4',
                         range=prange,
                         scale_hist=True,
                         verbose=True,
-                        bins=50)
+                        bins=20)
 
     fig.set_size_inches(12, 12)
+    colors = ['#4682b4', 'red', 'blue']
+    lines = [Line2D([0], [0], color=colors[0], linewidth=3, linestyle='-'),
+             Line2D([0], [0], color=colors[1], linewidth=3, linestyle='--'),
+             Line2D([0], [0], color=colors[2], linewidth=3, linestyle='--')]
+    labels = ['Median', r'$1 \sigma$', r'$3 \sigma$']
+    fig.legend(lines, labels)
 
     plt.savefig(os.path.join(OUTPATH, STAMP, PLOT_DIR, 'corner.pdf'
                              .format(args.WALKERS, args.NMAX)),
                 bbox_inches='tight')
+
+    return fig
+
 
 
 # %%
@@ -925,10 +946,10 @@ def main(pool, args):
                                                   dist_samples[1]*u.deg,
                                                   dist_samples[2]*u.deg,
                                                   dist_samples[3]*u.pc,
-                                                  dist_samples[4]*u.pc,]))
+                                                  dist_samples[4]*u.pc]))
 
-#        pbest = dist_samples.pdf_percentiles([15.87, 50., 84.14])
-        pbest = dist_samples.pdf_percentiles([2.275, 50., 97.725])
+        pbest = dist_samples.pdf_percentiles([15.87, 50., 84.14])
+#        pbest = dist_samples.pdf_percentiles([2.275, 50., 97.725])
 #        pbest = dist_samples.pdf_percentiles([.13, 50., 99.87])
         aop, loan, inc, r_per, r_ap = pbest.T
 
@@ -940,13 +961,33 @@ def main(pool, args):
                                            thin=thin)
 
         if args.TEST:
-            ptest = (180., 265., 145., .72, 1.74)
+            ptest = (aop[1] + 5., loan[1], inc[1] + 10., r_ap[1] - .1, r_ap[1])
 
-            corner_plot(corner_samples, pspace, ptest, args)
+#            corner_plot(corner_samples, pspace, ptest, args)
 
-            label = 'Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, ' \
-                    'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)' \
-                    .format(*ptest)
+            aop_label = r"$\omega = {0:.1f}_{{-{1:.1f}}}^{{+{2:.1f}}}$"
+            aop_label = aop_label.format(aop[1],
+                                         aop[1] - aop[0],
+                                         aop[2] - aop[1])
+            loan_label = r"$\Omega = {0:.1f}_{{-{1:.1f}}}^{{+{2:.1f}}}$"
+            loan_label = loan_label.format(loan[1],
+                                           loan[1] - loan[0],
+                                           loan[2] - loan[1])
+            inc_label = r"$i = {0:.1f}_{{-{1:.1f}}}^{{+{2:.1f}}}$"
+            inc_label = inc_label.format(inc[1],
+                                         inc[1] - inc[0],
+                                         inc[2] - inc[1])
+            rp_label = r"$r_{{p}} = {0:.2f}_{{-{1:.2f}}}^{{+{2:.2f}}}$"
+            rp_label = rp_label.format(r_per[1],
+                                       r_per[1] - r_per[0],
+                                       r_per[2] - r_per[1])
+            ra_label = r"$r_{{a}} = {0:.2f}_{{-{1:.2f}}}^{{+{2:.2f}}}$"
+            ra_label = ra_label.format(r_ap[1],
+                                       r_ap[1] - r_ap[0],
+                                       r_ap[2] - r_ap[1])
+
+            label = r'Best Fit (' + aop_label + ', ' + loan_label + ', ' \
+                    + inc_label + ', ' + rp_label + ', ' + ra_label + ')'
             prefix = 'HNC3_2_fit'
             plot_model(hnc3_2, prefix, ptest,
                        0., 360., label=label)
@@ -956,12 +997,13 @@ def main(pool, args):
             logging.info("Analysis complete")
 
         else:
-            corner_plot(corner_samples, pspace, pbest[1], args)
+            fig = corner_plot(corner_samples, pspace, pbest[1], args)
+#            return fig
 
             # print the best parameters found and plot the fit
             logging.info("Best Fit: aop: {0}, loan: {1}, inc: {2}, "
                          "r_per: {3}, r_ap: {4}".format(*pbest[1]))
-            print("aop: {1:.2f} + {0:.2f} - {2:.2f}".format(aop[2] - aop[1],
+            print("aop: {1:.1f} + {0:.2f} - {2:.2f}".format(aop[2] - aop[1],
                                                             aop[1],
                                                             aop[1] - aop[0]))
             print("loan: {1:.2f} + {0:.2f} - {2:.2f}".format(loan[2] - loan[1],
@@ -984,16 +1026,40 @@ def main(pool, args):
             print("tau: {0}".format(tau))
             print("pdf average: {0}".format(dist_samples.pdf_mean))
             print("pdf std: {0}".format(dist_samples.pdf_std))
+            print("sampling error: {0}".format(np.sqrt(1.
+                                               / (dist_samples.n_samples
+                                                  // tau))
+                                               * dist_samples.pdf_std))
             print("pdf smad: {0}".format(dist_samples.pdf_smad))
             print("pbest: {0}".format(pbest))
-            return
 
             np.savetxt(os.path.join(OUTPATH, STAMP, PLOT_DIR, 'pbest.csv'),
                        pbest)
 
-            label = 'Best Fit ($\\omega = {0:.2f}, \\Omega = {1:.2f}, ' \
-                    'i = {2:.2f}, r_p = {3:.2f}, r_a = {4:.2f}$)' \
-                    .format(*pbest[1])
+            aop_label = r"$\omega = {0:.1f}_{{-{1:.1f}}}^{{+{2:.1f}}}$"
+            aop_label = aop_label.format(aop[1],
+                                         aop[1] - aop[0],
+                                         aop[2] - aop[1])
+            loan_label = r"$\Omega = {0:.1f}_{{-{1:.1f}}}^{{+{2:.1f}}}$"
+            loan_label = loan_label.format(loan[1],
+                                           loan[1] - loan[0],
+                                           loan[2] - loan[1])
+            inc_label = r"$i = {0:.1f}_{{-{1:.1f}}}^{{+{2:.1f}}}$"
+            inc_label = inc_label.format(inc[1],
+                                         inc[1] - inc[0],
+                                         inc[2] - inc[1])
+            rp_label = r"$r_{{p}} = {0:.2f}_{{-{1:.2f}}}^{{+{2:.2f}}}$"
+            rp_label = rp_label.format(r_per[1],
+                                       r_per[1] - r_per[0],
+                                       r_per[2] - r_per[1])
+            ra_label = r"$r_{{a}} = {0:.2f}_{{-{1:.2f}}}^{{+{2:.2f}}}$"
+            ra_label = ra_label.format(r_ap[1],
+                                       r_ap[1] - r_ap[0],
+                                       r_ap[2] - r_ap[1])
+
+            label = r'Best Fit (' + aop_label + ', ' + loan_label + ', ' \
+                    + inc_label + ', \n$\\qquad$' + rp_label + ', ' \
+                    + ra_label + ')'
             prefix = 'HNC3_2_fit'  # '_{0}_{1}_{2}_{3}_{4}'.format(*pbest)ptest
             plot_model(hnc3_2, prefix, pbest[1],
                        0., 360., label=label)
@@ -1006,7 +1072,7 @@ def main(pool, args):
     if not os.listdir(OUTPATH):
         os.rmdir(OUTPATH)
 
-    return sampler
+    return dist_samples, tau
 
 
 if __name__ == '__main__':
@@ -1056,6 +1122,6 @@ if __name__ == '__main__':
     pool = schwimmbad.choose_pool(mpi=args.MPI, processes=args.NCORES)
 
     np.set_printoptions(precision=5)
-    sampler = main(pool, args)
+    samples, tau = main(pool, args)
 #    loan, aop, inc, r_p, r_a = samples
 #    mdl = orbits.model(samples)
