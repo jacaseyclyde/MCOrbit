@@ -871,11 +871,16 @@ def main(pool, args):
     if args.SAMPLE or args.CORNER:
         # set up priors and do MCMC. angular momentum bounds are based on
         # the maximum radius
-        p_aop = [0., 360.]  # argument of periapsis
-        p_loan = [0., 360.]  # longitude of ascending node
-        p_inc = [0., 360.]  # inclination
-        p_rp = [.25, 5.]  # periapsis distance
-        p_ra = [.25, 10.]  # apoapsis distance
+#        p_aop = [178., 182.]  # argument of periapsis
+#        p_loan = [267., 271.]  # longitude of ascending node
+#        p_inc = [143., 147.]  # inclination
+#        p_rp = [.75, .8]  # periapsis distance
+#        p_ra = [1.7, 1.8]  # apoapsis distance
+        p_aop = [40., 180.]
+        p_loan = [260., 280.]
+        p_inc = [135., 165.]
+        p_rp = [1.7, 1.8]
+        p_ra = [1.7, 1.8]
         pspace = np.array([p_aop,
                            p_loan,
                            p_inc,
