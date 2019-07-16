@@ -65,7 +65,7 @@ def ln_like(data, weights, lprobscale, model, cov):
 
     # first we sum the model prob for each data pt over all model pts
     # taking every other model point to improve computation time
-    model = model[::2, :]
+#    model = model[::2, :]
     for model_pt in model:
         lprob = np.logaddexp(lprob, multivariate_normal.logpdf(data,
                                                                mean=model_pt,
@@ -238,29 +238,64 @@ if __name__ == '__main__':
 
     plt.rcParams.update({'font.size': 14})
 
-    scale_data = ((data - np.min(data, axis=0))
-                  / (np.max(data, axis=0) - np.min(data, axis=0))) * 2 - 1
+    data_min = np.min(data, axis=0)
+    data_scale = 1. / (np.max(data, axis=0) - data_min)
+    scale_data = ((data - data_min)
+                  / (np.max(data, axis=0) - data_min)) * 2 - 1
     km = KMeans(n_clusters=24).fit(scale_data)
 
-    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
+    # we then take our covariance to be the mean cov of the clusters
+    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
+                   for k in np.unique(km.labels_)], axis=0)
 
-    fig = plt.figure(figsize=(12, 12))
-    plt.clf()
-    ax = fig.add_subplot(111, projection='3d')
+#    cov = np.array([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
+#    cov = np.cov(scale_data, rowvar=False)
 
-    for k, col in zip(range(len(np.unique(km.labels_))), colors):
-        my_members = km.labels_ == k
-        cluster_center = km.cluster_centers_[k]
-        ax.scatter(data[my_members, 0],
-                   c.dec.degree[nonnan][my_members],
-                   data[my_members, 2], col + '.')
-#    plt.title('KMeans Clustering')
-    ax.set_xlabel('Right Ascension [deg]', labelpad=20)
-    ax.set_ylabel('Declination [deg]', labelpad=20)
-    ax.set_zlabel('Line of Sight Velocity [km/s]')
+    lprobscale = 0.5 * (3 * np.log(2 * np.pi) + np.log(np.linalg.det(cov)))
 
-    plt.savefig('kmeans.pdf')
-    plt.show()
+    pbest = (40., 269., 155., 1.75, 1.75)
+    pbest2 = (40., 269., 155., .77, 1.75)
+
+
+    p_aop = [30., 50.]  # argument of periapsis
+    p_loan = [0., 280.]  # longitude of ascending node
+    p_inc = [80., 165.]  # inclination
+    p_rp = [.6, 10.]  # periapsis distance
+    p_ra = [.6, 10.]  # apoapsis distance
+    pspace = np.array([p_aop,
+                       p_loan,
+                       p_inc,
+                       p_rp,
+                       p_ra], dtype=np.float64)
+
+    lnlike = ln_prob(pbest, scale_data, 1., lprobscale, pspace, cov,
+                  [0., 360.], data_min, data_scale)[0]
+    lnlike2 = ln_prob(pbest2, scale_data, 1., lprobscale, pspace, cov,
+                  [0., 360.], data_min, data_scale)[0]
+
+    print(lnlike)
+    print(lnlike2)
+    print(lnlike > lnlike2)
+
+#    colors = cycle('bgrcmykbgrcmykbgrcmykbgrcmyk')
+#
+#    fig = plt.figure(figsize=(12, 12))
+#    plt.clf()
+#    ax = fig.add_subplot(111, projection='3d')
+#
+#    for k, col in zip(range(len(np.unique(km.labels_))), colors):
+#        my_members = km.labels_ == k
+#        cluster_center = km.cluster_centers_[k]
+#        ax.scatter(data[my_members, 0],
+#                   c.dec.degree[nonnan][my_members],
+#                   data[my_members, 2], col + '.')
+##    plt.title('KMeans Clustering')
+#    ax.set_xlabel('Right Ascension [deg]', labelpad=20)
+#    ax.set_ylabel('Declination [deg]', labelpad=20)
+#    ax.set_zlabel('Line of Sight Velocity [km/s]')
+#
+#    plt.savefig('kmeans.pdf')
+#    plt.show()
 #
 #    cov = np.mean([np.cov(scale_data[km.labels_ == k], rowvar=False)
 #                   for k in np.unique(km.labels_)], axis=0)
